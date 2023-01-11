@@ -12,16 +12,18 @@
 ## This produces a tibble with probabilities of separation at different ages,
 ## presumably more accurate with larger Ns. Really just meant to make a table
 ## you can compare to the separation probabilities in the actuarial
-## assumptions. Notice that you get N samples for each age.
+## assumptions. You get N samples for each age.
 ##
-validateDoesMemberSeparate <- function(N, tier="A", verbose=FALSE) {
+validateDoesMemberSeparate <- function(N, tier="A", mortClass="General",
+                                       verbose=FALSE) {
 
-    out <- tibble(age=1:65, Nsep=0, Ntot=0);
+    out <- tibble(age=1:65, service=age-20, Nsep=0, Ntot=0);
 
-    for (age in 20:65) {
+    for (age in 21:65) {
         for (i in 1:N) {
-            newStatus <- doesMemberSeparate(age, age-20, "active", tier=tier,
-                                            verbose=verbose)
+            newStatus <- doesMemberSeparate(age, sex="M", service=age-20,
+                                            status="active", tier=tier,
+                                            mortClass=mortClass, verbose=verbose)
 
             out[age, "Ntot"] <- out[age, "Ntot"] + 1;
             
@@ -29,7 +31,7 @@ validateDoesMemberSeparate <- function(N, tier="A", verbose=FALSE) {
         }
     }
 
-    return(out %>% filter(age>=20) %>% mutate(prob=Nsep/ifelse(Ntot==0,1,Ntot)));
+    return(out %>% filter(age>20) %>% mutate(prob=Nsep/ifelse(Ntot==0,1,Ntot)));
 
 }
 
