@@ -1,9 +1,14 @@
 library(tidyverse)
 
-## Given a cash flow, find the interest rate that will allow the
-## deposits to compound to a future value.  cashFlow is a tibble
-## with a 'year' column and a 'flow' column.
-
+## This requires the newton.r and mortality.r functions to be loaded first.
+## To load from remote directories, do this:
+##
+##   setwd("../../src/")
+##   source("car.r")
+##   setwd("../real/kentucky")
+##
+## We do not make this a library because many of the functions included here
+## are meant to be overridden.
 source("newton.r")
 source("mortality.r")
 
@@ -29,16 +34,22 @@ source("mortality.r")
 ##
 ##
 
-##### SYSTEM SPECIFIC DEFINITIONS
+################### BEGIN SYSTEM SPECIFIC DEFINITIONS ####################
 
-## These are specific to the pension plan in question.  Definitions
-## should be overridden with definitions from the data in the
-## appropriate valuation report.
+## Following is a set of functions that describe plan provisions and actuarial
+## assumptions for the pension plan under scrutiny here.  Plans are wildly
+## disparate in their benefit provisions, and not so terribly consistent in
+## their actuarial assumptions, either. So we model these differences with
+## functions, which create no real limit on the complexity.
 
-## These functions (doesMemberSeparate and doesMemberRetire) give the
-## probability of separation or retirement, given the age and service
-## years of the employee.
-doesMemberSeparate <- function(age, service, status, tier="1",
+## We provide default functions for each of these provisions, but they should
+## each be overridden by a plan-specific version.  Note that the
+## "doesMemberDie" function is over in mortality.r, largely due to the
+## widespread use of the same published mortality tables.
+
+## Provides an estimate of the probability of separation, given the age, class,
+## and service years of the employee.
+doesMemberSeparate <- function(age, sex, service, status, tier="1",
                                mortClass="General", verbose=FALSE) {
     cat("Running default doesMemberSeparate.\n");
 
@@ -56,7 +67,9 @@ doesMemberSeparate <- function(age, service, status, tier="1",
     return(status);
 }
 
-doesMemberRetire <- function(age, service, status, tier="A",
+## Provides an estimate of the probability of retirement, given the age, class,
+## and service years of the employee.
+doesMemberRetire <- function(age, sex, service, status, tier="A",
                              mortClass="General", verbose=FALSE) {
     cat("Running default doesMemberRetire.\n");
 
@@ -207,7 +220,7 @@ projectPremiums <- function(salaryHistory, tier="A", verbose=FALSE) {
            mutate(premium = salary * .25))
 }
 
-
+################### END SYSTEM SPECIFIC DEFINITIONS #############
 
 ## For a given year, uses an age, years of service, and salary
 ## history, to project a typical career forward to separation or
@@ -341,11 +354,11 @@ simulateCareerForward <- function(year, age, service, salary,
                           mortClass=mortClass, verbose=verbose);
 
         currentStatus <-
-            doesMemberSeparate(testAge, currentService, currentStatus,
+            doesMemberSeparate(testAge, sex, currentService, currentStatus,
                                tier=tier, mortClass=mortClass, verbose=verbose);
 
         currentStatus <-
-            doesMemberRetire(testAge, currentService, currentStatus,
+            doesMemberRetire(testAge, sex, currentService, currentStatus,
                              tier=tier, mortClass=mortClass, verbose=verbose);
 
         ## Check for a survivor? Note that we (might) create a survivor here,
