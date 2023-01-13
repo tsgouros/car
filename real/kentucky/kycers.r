@@ -6,14 +6,37 @@
 source("../../src/car.r", chdir=TRUE);
 source("../../validate/validate.r", chdir=TRUE);
 
+validateInputsKY <- function(age=20, ageRange=c(20,120),
+                           sex="M", sexRange=c("M","F"),
+                           service=0, serviceRange=c(0,100),
+                           status="active",
+                           statusRange=c("active", "separated", "retired",
+                                         "retired/survivor", "deceased",
+                                         "disabled/accident", "disabled/ordinary"),
+                           mortClass="General",
+                           mortClassRange=c("General","Safety"),
+                           tier="1", tierRange=c("1", "2", "3"),
+                           verbose=FALSE) {
+    return(validateInputs(age=age, ageRange=ageRange,
+                          sex=sex, sexRange=sexRange,
+                          service=service, serviceRange=serviceRange,
+                          status=status, statusRange=statusRange,
+                          mortClass=mortClass, mortClassRange=mortClassRange,
+                          tier=tier, tierRange=tierRange,
+                          verbose=verbose));
+}
+
+
 ## System-specific, from the KY CERS 2022 val report.
 doesMemberSeparate <- function(age, sex, service, status="active", tier="1",
                                mortClass="General", verbose=FALSE) {
-    ## If this is not currently an active employee, get out.
-    if (status != "active") return(status);
 
-    if (verbose) cat("Separate? age:", age, "service:", service, "status:", status,
-                     "tier:", tier, "mortClass:", mortClass);
+    if (verbose) cat("doesMemberSeparate: ");
+    validateInputsKY(age=age, sex=sex, service=service, status=status, tier=tier,
+                     mortClass=mortClass, verbose=verbose);
+
+    ## If this is not currently an active employee, get out.
+    if (!checkStatus(status, acceptable=c("active"))) return(status);
 
     ## Percentages from p.67 of the val report.
     if (mortClass == "General") {
@@ -44,22 +67,15 @@ doesMemberSeparate <- function(age, sex, service, status="active", tier="1",
 
 doesMemberRetire <- function(age, sex, service, status="active", year=2022,
                              tier="A", mortClass="General", verbose=FALSE) {
-    ## If already retired, disabled, or dead, get out.
-    ## If already retired, disabled, or dead, get out.
-    if (status %in% c("retired", "retired/survivor", "deceased", "disabled/accident",
-                      "disabled/ordinary")) return(status);
-    
-    if (verbose) cat(" --retire? age: ", age, ", service: ", service,
-                     ", tier: ", tier, " begin: ", status, "..",
-                     sep="");
 
-    if (!(mortClass %in% c("General", "Safety"))) {
-        stop(paste0("What mortClass is this: ", mortClass));
-    }
+    if (verbose) cat("doesMemberRetire: ");
+    validateInputs(age=age, sex=sex, service=service, status=status, tier=tier,
+                   mortClass=mortClass, verbose=verbose);
 
-    if (!(tier %in% c("1", "2", "3"))) {
-        stop(paste0("No such tier: ", tier));
-    }
+    ## If already retired or dead or something, get out.
+    if (checkStatus(status, acceptable=c("retired", "retired/survivor",
+                                         "deceased", "disabled/accident",
+                                         "disabled/ordinary"))) return(status);
 
     ## These are from the table on page 61 of the 2022 val report
     generalRetirementMale <- c(35.0, 35.0, 35.0, 35.0, 35.0, 35.0,
@@ -192,55 +208,48 @@ doesMemberRetire <- function(age, sex, service, status="active", year=2022,
 }
 
 
-doesMemberDisableAccident <- function(age, sex, service, status,
-                                      mortClass="General", tier="A",
-                                      verbose=FALSE) {
-    ## If already retired, disabled, or dead, get out.
-    if (status %in% c("retired", "retired/survivor", "deceased",
-                      "disabled/accident", "disabled/ordinary")) return(status);
+doesMemberBecomeDisabled <- function(age, sex, service, status,
+                                     mortClass="General", tier="A",
+                                     verbose=FALSE) {
 
-    if (sex == "M") {
-        if (age < 35) threshold <- 0.0003
-        else if (age < 65) 
-            threshold <- c(0.0004, 0.0004, 0.0005, 0.0006, 0.0007,
-                           0.0008, 0.0009, 0.0010, 0.0012, 0.0014,
-                           0.0016, 0.0018, 0.0021, 0.0024, 0.0028,
-                           0.0033, 0.0039, 0.0046, 0.0053, 0.0061,
-                           0.0069, 0.0077, 0.0086, 0.0095, 0.0105,
-                           0.0115, 0.0126, 0.0138, 0.0151, 0.0164)[age - 34]
-        else threshold <- 0.0;
-    } else {
-        if (age < 28) threshold <- 0.0003
-        else if (age < 30) threshold <- 0.0004
-        else if (age < 65)
-            threshold <- c(0.0004, 0.0005, 0.0005, 0.0006, 0.0006,
-                           0.0007, 0.0008, 0.0009, 0.0010, 0.0012,
-                           0.0013, 0.0015, 0.0017, 0.0019, 0.0022,
-                           0.0024, 0.0027, 0.0030, 0.0033, 0.0036,
-                           0.0040, 0.0044, 0.0049, 0.0054, 0.0059,
-                           0.0064, 0.0069, 0.0074, 0.0080, 0.0085,
-                           0.0090, 0.0096, 0.0101, 0.0105, 0.0109)[age - 29]
-        else threshold <- 0.0;
+    if (verbose) cat("doesMemberDisableOrdinary: ");
+    validateInputs(age=age, sex=sex, service=service, status=status, tier=tier,
+                   mortClass=mortClass, verbose=verbose);
+
+    ## If already retired or dead or something, get out.
+    if (checkStatus(status, acceptable=c("retired", "retired/survivor",
+                                         "deceased", "disabled/accident",
+                                         "disabled/ordinary"))) return(status);
+
+    ## The KY system has one table for disability probabilities, and then
+    ## assumes a fixed percentage of them are accidental, with that fixed
+    ## percentage being a function of the mortClass.
+    ageClass <- min(floor((age-10)/10), 5);
+
+    ## Numbers from table on page 62
+    if (mortClass == "General") {
+        threshold <- c(0.04, 0.06, 0.14, 0.39, 1.02)[ageClass];
+    } else if (mortClass == "Safety") {
+        threshold <- c(0.07, 0.12, 0.26, 0.73, 1.90)[ageClass]
     }
+    
+    ## Roll dice
+    if (runif(1) < threshold/100) status <- "disabled/ordinary";
 
-    ## Roll the dice.
-    if (runif(1) < threshold) status <- "disabled/accident";
+    ## Roll again to see if it is actually an accidental disability.  See page
+    ## 63 of 2022 val report.
+    if (status == "disabled/ordinary") {
+        if (mortClass == "General") {
+            threshold <- 2.0;
+        } else if (mortClass == "Safety") {
+            threshold <- 50.0;
+        }
 
-    if (verbose) cat("result: ", status, "\n", sep="");
-
+        if (runif(1) < threshold/100) status <- "disabled/accident";
+    }
+    
     return(status);
 }
-
-## This is empty because ACC does not distinguish between kinds of
-## disability.  We are using disabled/ordinary as a synonym for
-## retired-because-of-disability, since disabled/accident seems not to
-## imply actually retired in the ACC system. See above.
-doesMemberDisableOrdinary <- function(age, sex, service, status,
-                                      mortClass="General", tier="A",
-                                      verbose=FALSE) {
-    return(status);
-}
-
 
 projectSalaryDelta <- function(year, age, salary, service=1, tier="A",
                                mortClass="General", verbose=verbose) {
@@ -260,8 +269,9 @@ doesMemberHaveSurvivor <- function(age, sex, status, survivor,
                                    tier=tier, mortClass=mortClass,
                                    verbose=verbose) {
 
-    if (verbose) cat("Member: age:", age, "sex:", sex, "status:", status, "\n")
-    
+    validateInputsKY(age=age, sex=sex, service=service, status=status, tier=tier,
+                     mortClass=mortClass, verbose=verbose);
+
     ## We only want to do this once. And we probably want to do better
     ## (less retro?) choices of sex and age in the specialized versions.
     if ((status == "retired") && (survivor$status == "")) {
