@@ -33,6 +33,54 @@ source("mortality.r")
 ## cash flow matrix.
 ##
 ##
+validateInputs <- function(age=20, ageRange=c(20,120),
+                           sex="M", sexRange=c("M","F"),
+                           service=0, serviceRange=c(0,100),
+                           status="active",
+                           statusRange=c("active", "separated", "retired",
+                                         "retired/survivor", "deceased",
+                                         "disabled/accident", "disabled/ordinary"),
+                           mortClass="General",
+                           mortClassRange=c("General","Safety","Teacher"),
+                           tier="1", tierRange=c("1", "2", "3"),
+                           verbose=FALSE) {
+
+
+    if (verbose) cat("age:", age, ", sex:", sex, ", status:", status,
+                     ", mortClass:", mortClass, ", tier:", tier, "\n", sep="");
+    
+    if (!is.numeric(age))
+        return(paste0("Age is not numeric: ", age))
+    if ((age < ageRange[1]) || (age > ageRange[2]))
+        return(paste0("Bad age: ", age));
+
+    if (!is.numeric(service))
+        return(paste0("Service is not numeric: ", service))
+    if ((service < serviceRange[1]) || (service > serviceRange[2]))
+        return(paste0("Bad service: ", service));
+
+    if (!(sex %in% sexRange))
+        return(paste0("Bad sex: ", sex))
+    
+    if (!(status %in% statusRange))
+        return(paste0("Bad status: ", status))
+    
+    if (!(mortClass %in% mortClassRange))
+        return(paste0("Bad mortClass: ", mortClass))
+    
+    if (!(tier %in% tierRange))
+        return(paste0("Bad tier: ", tier))
+
+    ## If we're here, all is good.
+    return("");
+}    
+
+checkStatus <- function(status,
+                        acceptable=c("active", "separated", "retired",
+                                     "retired/survivor", "deceased",
+                                     "disabled/accident", "disabled/ordinary")) {
+    return(status %in% acceptable);
+}
 
 ################### BEGIN SYSTEM SPECIFIC DEFINITIONS ####################
 
@@ -52,9 +100,12 @@ source("mortality.r")
 doesMemberSeparate <- function(age, sex, service, status="active", tier="1",
                                mortClass="General", verbose=FALSE) {
     cat("Running default doesMemberSeparate.\n");
-
+    if (verbose) cat("doesMemberSeparate: ");
+    validateInputs(age=age, sex=sex, service=service, status=status, tier=tier,
+                   mortClass=mortClass, verbose=verbose);
+    
     ## If this is not currently an active employee, get out.
-    if (status != "active") return(status);
+    if (!checkStatus(status, acceptable=c("active"))) return(status);
 
     rates <- c(0.070, 0.045, 0.037, 0.030, 0.025,
                0.017, 0.017, 0.017, 0.017, 0.015,
@@ -73,9 +124,14 @@ doesMemberRetire <- function(age, sex, service, status="active", tier="1",
                              mortClass="General", verbose=FALSE) {
     cat("Running default doesMemberRetire.\n");
 
-    ## If already retired, get out.
-    if ((status == "retired") || (status == "deceased") |
-        (status == "disabled") ) return(status);
+    if (verbose) cat("doesMemberRetire: ");
+    validateInputs(age=age, sex=sex, service=service, status-status, tier=tier,
+                   mortClass=mortClass, verbose=verbose);
+
+    ## If already retired or dead or something, get out.
+    if (checkStatus(status, acceptable=c("retired", "retired/survivor",
+                                         "deceased", "disabled/accident",
+                                         "disabled/ordinary"))) return(status);
 
     ## The service years on input refer to years that have begun, but
     ## not necessarily completed.  We want completed years.  This is
@@ -104,23 +160,55 @@ doesMemberRetire <- function(age, sex, service, status="active", tier="1",
 }
 
 doesMemberBecomeDisabled <- function(age, sex, service, status,
-                                     mortClass="General", tier="1",
-                                     verbose=FALSE) {
+                                      mortClass="General", tier="1",
+                                      verbose=FALSE) {
     cat("Running default doesMemberBecomeDisabled.\n");
 
-    ## If already retired or disabled, don't change anything and get out.
-    if ((status == "retired") || (status == "deceased") ||
-        (status == "disabled") ) return(status);
+    if (verbose) cat("doesMemberBeceomDisabled: ");
+    validateInputs(age=age, sex=sex, service=service, status-status, tier=tier,
+                   mortClass=mortClass, verbose=verbose);
 
-    ## These are rates for ages 20-25, 25-30, 30-35, etc
-    rates <- c(0.0003, 0.0003, 0.0004, 0.0009, 0.0017, 0.0017, 0.0043, 0.01);
+    ## If already retired or dead or something, get out.
+    if (checkStatus(status, acceptable=c("retired", "retired/survivor",
+                                         "deceased", "disabled/accident",
+                                         "disabled/ordinary"))) return(status);
 
-    ## Select the appropriate rate.  This is a quicker way to choose
-    ## among the options than a big if statement.
-    irate <- min(length(rates), ceiling((age - 20)/5));
+    status <- doesMemberDisableOrdinary(age, sex, service,
+                                        currentStatus, tier=tier,
+                                        mortClass=mortClass, verbose=verbose);
 
-    ## Roll the dice.
-    if (runif(1) < rates[irate]) status <- "disabled";
+    status <- doesMemberDisableAccident(age, sex, service,
+                                        currentStatus, tier=tier,
+                                        mortClass=mortClass, verbose=verbose);
+
+    return(status);
+}
+    
+## We distinguish between a member becoming disabled ("ordinary") and becoming
+## disabled on the job ("accident").  The default versions are nops, so you can
+## decide whether to specialize the accident, ordinary, or combined disability
+## probability function.
+doesMemberDisableOrdinary <- function(age, sex, service, status,
+                                      mortClass="General", tier="1",
+                                      verbose=FALSE) {
+    cat("Running default doesMemberDisableOrdinary.\n");
+
+    if (verbose) cat("doesMemberDisableOrdinary: ");
+    validateInputs(age=age, sex=sex, service=service, status-status, tier=tier,
+                   mortClass=mortClass, verbose=verbose);
+
+    return(status);
+}
+
+## See "Ordinary" above.
+doesMemberDisableAccident <- function(age, sex, service, status,
+                                      mortClass="General", tier="1",
+                                      verbose=FALSE) {
+    cat("Running default doesMemberDisableAccident.\n");
+
+    if (verbose) cat("doesMemberDisableAccident: ");
+    validateInputs(age=age, sex=sex, service=service, status-status, tier=tier,
+                   mortClass=mortClass, verbose=verbose);
 
     return(status);
 }
@@ -131,7 +219,9 @@ doesMemberHaveSurvivor <- function(age, sex, status, survivor,
 
     cat("Running default doesMemberHaveSurvivor\n");
 
-    if (verbose) cat("Member: age:", age, "sex:", sex, "status:", status, "\n")
+    if (verbose) cat("doesMemberDisableAccident: ");
+    validateInputs(age=age, sex=sex, service=service, status-status, tier=tier,
+                   mortClass=mortClass, verbose=verbose);
     
     ## We only want to do this once. And we probably want to do better
     ## (less retro?) choices of sex and age in the specialized versions.
@@ -352,6 +442,11 @@ simulateCareerForward <- function(year, age, service, salary,
         currentStatus <-
             doesMemberDie(testAge, sex, currentStatus,
                           mortClass=mortClass, verbose=verbose);
+
+        currentStatus <-
+            doesMemberBecomeDisabled(testAge, sex, currentService,
+                                     currentStatus, tier=tier,
+                                     mortClass=mortClass, verbose=verbose);
 
         currentStatus <-
             doesMemberSeparate(testAge, sex, currentService, currentStatus,
@@ -746,10 +841,11 @@ print.memberList <- function(ml, ...) {
 ## Generate N new active employees with the given ranges, and append
 ## them to the input list of members.
 genEmployees <- function (N=1, ageRange=c(20,25), servRange=c(0,5),
-                         avgSalary=75000, members=memberList(),
-                         sex="M", tier="1", currentYear=2022,
-                         class="General", status="active",
-                         verbose=FALSE) {
+                          avgSalary=75000, sdSalary=5000,
+                          members=memberList(),
+                          sex="M", tier="1", currentYear=2022,
+                          class="General", status="active",
+                          verbose=FALSE) {
 
     if (verbose) cat("Creating", N, "members in", currentYear, "\n",
                      "avgSalary:", avgSalary, "age range:", ageRange[1], "-",
@@ -761,7 +857,7 @@ genEmployees <- function (N=1, ageRange=c(20,25), servRange=c(0,5),
     ## years of service.
     servs <- sapply(round(runif(N)*(servRange[2] - servRange[1])) + servRange[1],
                     function(x) { min(19, x) });
-    salaries <- rnorm(N, mean=avgSalary, sd=5000);
+    salaries <- rnorm(N, mean=avgSalary, sd=sdSalary);
 
     ## The sex arg can be a list like (M=0.4, F=0.6) indicating
     ## proportions of the population. We assume the components add up
@@ -829,7 +925,7 @@ buildMasterCashFlow <- function(memberTbl, members, verbose=FALSE) {
     nYears <- endYear - startYear + 1;
 
     if (verbose) cat("Starting at", startYear, "ending at", endYear,
-                     "n :", nYears, "\n");
+                     "n =", nYears, "\n");
 
     ## Loop through all the potential retirement classes, even if
     ## they're empty.
