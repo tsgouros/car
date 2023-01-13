@@ -806,6 +806,80 @@ print.member <- function(m, ...) {
     cat("id: ", m$id, ", ", format(m), "\n", sep="");
 }
 
+## Generate a latex output for making a detailed report for a member. Useful for
+## doing QC on the model members.
+latex.member <- function(m, ...) {
+    out <- paste0("\\begin{minipage}[t]{0.49\\linewidth}",
+                  "\\begin{tabular}{llll} \\\\\n",
+                  "id: & ", m$id, " & sex: & ", m$sex, "\\\\\n",
+                  "birthYear: & ", m$birthYear, 
+                  " & deathYear: & ", max(m$salaryHistory$year), "\\\\\n",
+                  "hireYear: & ", m$hireYear,
+                  " & sepYear: & ", m$sepYear, "\\\\\n",
+                  "retireYear: & ", m$retireYear, "& & \\\\\n",
+                  "mortality class: & ", m$mortClass,
+                  " & tier: & ", m$tier, "\\\\\n",
+                  "car: & ",
+                  ifelse(is.na(m$car), "NA",
+                         paste0(format((m$car-1)*100, digits=4),"\\%")),
+                  " & & \\\\\n",
+                  "\\end{tabular}\n\n");
+
+    
+    if (m$note != "") {
+        out <- paste0(out, "\n", "     note: ", m$note);
+    }
+
+    ## Did this person ever get a pension?
+    getsPension <- FALSE;
+    if ("pension" %in% names(m$salaryHistory)) getsPension <- TRUE;
+    
+    out <- paste0(out, "{\\fontsize{7pt}{8pt}\\selectfont{",
+                  ifelse(getsPension,
+                         "\\begin{tabular}{rrrrrrc} \\\\",
+                         "\\begin{tabular}{rrrrrc} \\\\"),
+                  "\\textbf{year}&\\textbf{age}&\\textbf{service}&",
+                  "\\textbf{salary}&\\textbf{premium}&",
+                  ifelse(getsPension, "\\textbf{pension}&", ""),
+                  "\\textbf{status} \\\\ \\hline\n");
+    
+    for (i in 1:length(m$salaryHistory$salary)) {
+                                                    
+        out <- paste0(out,
+                      m$salaryHistory$year[i], " & ",
+                      m$salaryHistory$age[i], " & ",
+                      m$salaryHistory$service[i], " & ")
+        
+        if (m$salaryHistory$fromData[i]) {
+            out <- paste0(out,
+                          "\\textbf{",
+                          format(round(m$salaryHistory$salary[i]),
+                                 digits=15, big.mark=","), "} & ");
+        } else {
+            out <- paste0(out,
+                          format(round(m$salaryHistory$salary[i]),
+                                 digits=15, big.mark=","), " & ");
+        }
+
+        out <- paste0(out, 
+                      format(round(m$salaryHistory$premium[i]),
+                             digits=15, big.mark=","), " & ",
+                      ifelse(getsPension,
+                             paste0(format(round(m$salaryHistory$pension[i]),
+                                           digits=15, big.mark=","), " & "), ""),
+                      m$salaryHistory$status[i], " \\\\\n ");
+    }
+    out <-
+        paste0(out,
+               ifelse(getsPension,
+                      "\\multicolumn{7}{l}{(Bold font implies from data.)}\\\\\n",
+                      "\\multicolumn{6}{l}{(Bold font implies from data.)}\\\\\n"),
+                  "\\end{tabular}}}\n",
+                  "\\end{minipage}\n");
+                      
+    return(out);
+}
+
 ## Defines a class of 'memberList' for convenience.
 memberList <- function(members=c()) {
     out <- list();
@@ -832,6 +906,23 @@ format.memberList <- function(ml, ...) {
 
 print.memberList <- function(ml, ...) {
     cat(format(ml), "\n");
+}
+
+latex.memberList <- function(ml, ...) {
+    out <- paste0("\\documentclass[10pt]{article}\n",
+                  "\\usepackage[margin=0.5in]{geometry}\n",
+                  "\\usepackage{mathptmx}\n",
+                  "\\begin{document}\n\n")
+
+    i <- 1;
+    for (member in ml) {
+        out <- paste0(out, latex.member(member));
+        if ((i %% 2) == 0) out <- paste0(out, "\n");
+        i <- i+1;
+    }
+
+    out <- paste0(out, "\\end{document}")
+    return(out);
 }
 
 # Then a 'snapshot' function to create an employee matrix for a given
