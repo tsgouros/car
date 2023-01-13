@@ -49,7 +49,7 @@ source("mortality.r")
 
 ## Provides an estimate of the probability of separation, given the age, class,
 ## and service years of the employee.
-doesMemberSeparate <- function(age, sex, service, status, tier="1",
+doesMemberSeparate <- function(age, sex, service, status="active", tier="1",
                                mortClass="General", verbose=FALSE) {
     cat("Running default doesMemberSeparate.\n");
 
@@ -69,7 +69,7 @@ doesMemberSeparate <- function(age, sex, service, status, tier="1",
 
 ## Provides an estimate of the probability of retirement, given the age, class,
 ## and service years of the employee.
-doesMemberRetire <- function(age, sex, service, status, tier="A",
+doesMemberRetire <- function(age, sex, service, status="active", tier="1",
                              mortClass="General", verbose=FALSE) {
     cat("Running default doesMemberRetire.\n");
 

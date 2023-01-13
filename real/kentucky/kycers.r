@@ -7,7 +7,7 @@ source("../../src/car.r", chdir=TRUE);
 source("../../validate/validate.r", chdir=TRUE);
 
 ## System-specific, from the KY CERS 2022 val report.
-doesMemberSeparate <- function(age, sex, service, status, tier="A",
+doesMemberSeparate <- function(age, sex, service, status="active", tier="1",
                                mortClass="General", verbose=FALSE) {
     ## If this is not currently an active employee, get out.
     if (status != "active") return(status);
@@ -42,72 +42,153 @@ doesMemberSeparate <- function(age, sex, service, status, tier="A",
 
 
 
-doesMemberRetire <- function(age, sex, service, status, tier="A",
-                             mortClass="General", verbose=FALSE) {
+doesMemberRetire <- function(age, sex, service, status="active", year=2022,
+                             tier="A", mortClass="General", verbose=FALSE) {
+    ## If already retired, disabled, or dead, get out.
     ## If already retired, disabled, or dead, get out.
     if (status %in% c("retired", "retired/survivor", "deceased", "disabled/accident",
                       "disabled/ordinary")) return(status);
-
-    ## The service years on input refer to years that have begun, but
-    ## not necessarily completed.  We want completed years.  This is
-    ## related to the model's approximation that events happen on the
-    ## transition from one year to the next, as opposed to the real
-    ## world, where events happen whenever they feel like it.
-    completedYears <- service - 1;
-
-    ## If we're not even vested, do nothing and return.
-    if (completedYears < 10) {
-        if (verbose) cat(" --retire? age: ", age, ", service: ", service,
-                         "-> not even vested.\n", sep="");
-        return(status);
-    }
     
     if (verbose) cat(" --retire? age: ", age, ", service: ", service,
                      ", tier: ", tier, " begin: ", status, "..",
                      sep="");
 
-    ## Cannot find a number for this, so we estimate.
-    if (status == "separated") {
-        if (age < 55) {
-            threshold <- 0.0;
-        } else if (age < 65) {
-            threshold  <- 0.1;
-        } else {
-            threshold <- 1.0;
+    if (!(mortClass %in% c("General", "Safety"))) {
+        stop(paste0("What mortClass is this: ", mortClass));
+    }
+
+    if (!(tier %in% c("1", "2", "3"))) {
+        stop(paste0("No such tier: ", tier));
+    }
+
+    ## These are from the table on page 61 of the 2022 val report
+    generalRetirementMale <- c(35.0, 35.0, 35.0, 35.0, 35.0, 35.0,
+                               rep(30.0, 25), 100.0);
+    generalRetirementFemale <- c(rep(27.0, 18), 40.0, 35.0, 30.0, 30.0,
+                                 rep(27.0, 9), 100.0);
+    
+    generalEarlyRetirementMale <- c(rep(15.0, 3), rep(4.0, 7));
+    generalEarlyRetirementFemale <- c(16.0, 18.0, 20.0, 9.0, 8.0, rep(5.0, 5));
+
+    safetyRetireTierOne <- c(rep(17.0, 15), 30.0, 22.5, 18.0, 21.0, 24.0, 30.0,
+                             33.0, 36.0, 39.0, 39.0);
+    safetyRetireTierTwo <- c(21.6, 24.0, 26.4, 28.8, 31.2, 31.2);
+    safetyRetireTierThree <- c(rep(16.0, 5), 100.0);
+    
+
+    threshold <- 0;
+
+    if (mortClass == "General") {
+        
+        if (tier == "1")  {
+            ## General retirement provisions seem to depend on age, less on
+            ## service, though they have a 5-year vesting requirement.
+            if (service < 5) {
+                if (verbose) cat("-> not even vested.\n");
+                return(status);
+            }
+
+            ## Check eligibility.
+            if ((age >= 65) || (service >= 27)) {
+            
+                if (sex == "M") {
+                    threshold <- generalRetirementMale[min(max(age - 43, 1), 32)];
+                } else {
+                    threshold <- generalRetirementFemale[min(max(age - 43, 1), 32)];
+                }
+
+            } else if ((service >= 25) || ((age >= 55) && (service >= 5))) {
+                ## Check for early retirement.
+                if (sex == "M") {
+                    threshold <-
+                        generalEarlyRetirementMale[min(max(age - 54, 1), 10)];
+                } else {
+                    threshold <-
+                        generalEarlyRetirementFemale[min(max(age - 54, 1), 10)];
+                }
+            }
+        } else if ((tier == "2") || (tier == "3")) {
+            
+            ## General retirement provisions seem to depend on age, less on
+            ## service, though they have a 5-year vesting requirement.
+            if (service < 5) {
+                if (verbose) cat("-> not even vested.\n");
+                return(status);
+            }
+
+            ## Check eligibility.
+            if (((age >= 65) && (service >= 5)) ||
+                ((age >= 57) && (age + service > 87))) {
+            
+                if (sex == "M") {
+                    threshold <- generalRetirementMale[min(max(age - 43, 1), 32)];
+                } else {
+                    threshold <- generalRetirementFemale[min(max(age - 43, 1), 32)];
+                }
+
+            } else if ((tier == "2") && ((age >= 60) && (service >= 10))) {
+                ## Check for early retirement. (No such for tier 3.)
+                if (sex == "M") {
+                    threshold <-
+                        generalEarlyRetirementMale[min(max(age - 54, 1), 10)];
+                } else {
+                    threshold <-
+                        generalEarlyRetirementFemale[min(max(age - 54, 1), 10)];
+                }
+            }
         }
-    } else if (status == "active") {
-        if (mortClass == "General") {
-            if (age < 55) threshold <- 0.0
-            else if (age < 60) threshold <- 0.07
-            else if (age < 61) threshold <- 0.2
-            else if (age < 65) threshold <- 0.3
-            else if (age < 75) threshold <- 0.5
-            else threshold <- 1.0;
-        } else if (mortClass == "Safety") {
-            if (age < 55) threshold <- 0.0
-            else if (age < 59) threshold <- 0.2
-            else if (age < 62) threshold <- 0.3
-            else if (age == 62) threshold <- 0.4
-            else if (age == 63) threshold <- 0.3
-            else if (age == 64) threshold <- 0.5
-            else threshold <- 1.0;
-        } else {
-            stop(paste("what mortality class is this?", mortClass));
+    } else { ## mortClass == Safety
+            
+        if (tier == 1) {
+            if (age >= 62) {
+                if (age < 65) {
+                    threshold <- safetyRetireTierOne[min(max(service - 4, 1), 25)];
+                } else {
+                    threshold <- 1.0;
+                }
+            } else if (((age >= 55) && (service >= 1)) ||
+                       (service > 20) ||
+                       ((age >= 50) && (service >= 15))) {   # (Early retirement.)
+                threshold <- safetyRetireTierOne[min(max(service - 4, 1), 25)];
+            }
+        } else if (tier == 2) {
+            if (age >= 60) {
+                if (service < 5) {
+                    threshold <- safetyRetireTierTwo[min(max(service - 24, 1), 6)];
+                } else {
+                    threshold <- 1.0;
+                }
+            } else if ((service >= 25) ||
+                       ((age >= 50) && (service >= 15))) {   # (Early retirement.)
+                threshold <- safetyRetireTierTwo[min(max(service - 24, 1), 6)];
+            }
+        } else if (tier == 3) {
+            if (age >= 60) {
+                if (service < 5) {
+                    threshold <- safetyRetireTierThree[min(max(service - 24, 1), 6)];
+                } else {
+                    threshold <- 1.0;
+                }
+            } else if (service >= 25) {
+                threshold <- safetyRetireTierThree[min(max(service - 24, 1), 6)];
+            }
         }
+    }
+
+    ## If we're not even vested, do nothing and return.
+    if (threshold == 0) {
+        if (verbose) cat(" --retire? age: ", age, ", service: ", service,
+                         "-> not even vested.\n", sep="");
+        return(status);
     } else {
-        stop(paste("what status is this?", status));
-    }
     
-    if (verbose) cat("threshold: ", threshold, "..", sep="");
+        ## Roll the dice.
+        if (runif(1) < threshold/100.0) status <- "retired";
     
-    ## Roll the dice.
-    if (runif(1) < threshold) {
-        status <- "retired";
+        if (verbose) cat("result: ", status, "\n", sep="");
+
+        return(status);
     }
-
-    if (verbose) cat("result: ", status, "\n", sep="");
-
-    return(status);
 }
 
 

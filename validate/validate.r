@@ -153,7 +153,8 @@ validateProjectSalaryDelta <- function(startYear=1990, endYear=2030,
 ## ranges. Note that we are validating not only the probability of choosing to
 ## retire, but also the function's evaluation of eligibility. So there should
 ## be a lot of zeros.
-validateDoesMemberRetireA <- function(N, status="active", tier="A", verbose=FALSE) {
+validateDoesMemberRetireA <- function(N, sex="M", status="active", tier="A",
+                                      mortClass="General", verbose=FALSE) {
   
     out <- tibble(age=1:80,
                   R00t05=0, N00t05=0,
@@ -168,14 +169,15 @@ validateDoesMemberRetireA <- function(N, status="active", tier="A", verbose=FALS
     for (age in 40:75) {
         ## Generate a selection of service years for each age.
         data <- tibble(age=rep(age, N),
-                           service=round(0.5 + runif(N) * min(34.5, age-21)));
+                       service=round(0.5 + runif(N) * min(34.5, age-21)));
 
         ## Run doesMemberRetire for each one. Note that there is a more
         ## tidyverse way to do this, but there's something screwy about using
         ## verbose for debugging in that case.
-        data$newStatus <- apply(data, 1, function(x, status, tier, verbose) {
-            doesMemberRetire(x["age"], x["service"], status, tier, verbose)
-        }, status=status, tier=tier, verbose=verbose)
+        data$newStatus <- apply(data, 1, function(x) {
+            doesMemberRetire(x["age"], sex, x["service"], status=status,
+                             tier=tier, mortClass=mortClass, verbose=verbose)
+        })
 
         ## This is here because if we include it in the original definition of
         ## data, then apply assumes all the x args to function are char. (?!)
@@ -199,7 +201,12 @@ validateDoesMemberRetireA <- function(N, status="active", tier="A", verbose=FALS
     return(out);
 }
 
-## Convenience function for the output of validateDoesMemberRetireA.
+## Convenience function for the output of validateDoesMemberRetireA. What you get
+## from this function is a list of service classes ("s00t05" means "service 0 years
+## to five years") and for each one you get the % of members who retired and the
+## number of trials, in order.  So "0.25|24" means we tried 24 times and six (0.25)
+## of them retired. These probabilities should look roughly like the probabilities
+## from the val reports.
 displayRetirementValidation <- function(valOutput) {
 
     out <- valOutput %>%
@@ -219,9 +226,9 @@ displayRetirementValidation <- function(valOutput) {
 ## individuals and follows them by advancing their age and service until they
 ## retire, and returns some ratios about that.
 ##
-## Try: validateDoesMemberRetireB(1000, tier="B") %>% ggplot()  +
-##                 geom_point(aes(x=age,y=retirements))
-validateDoesMemberRetireB <- function(N, status="active", tier="A", verbose=FALSE) {
+## Try: validateDoesMemberRetireB(1000, tier="B") %>% ggplot()  + geom_point(aes(x=age,y=retirements))
+validateDoesMemberRetireB <- function(N, sex="M", status="active", tier="A",
+                                      mortClass="General", verbose=FALSE) {
 
     out <- tibble(age=40:80, retirements=0);
     
@@ -231,15 +238,18 @@ validateDoesMemberRetireB <- function(N, status="active", tier="A", verbose=FALS
         service <- min(age - 21, round(rnorm(1, mean=10, sd=5))) - 1;
         curStatus <- status;
 
-        if (verbose) cat(" Member age:", age, "service:", service,
-                         "status:", curStatus, "\n");
+        if (verbose) cat(" Member age:", age, "sex:", sex, "service:", service,
+                         "status:", curStatus, "tier:", tier,
+                         "mortClass:", mortClass, "\n");
 
         while((curStatus != "retired") & (age <= 80)) {
             ## Apparently not this year, advance age and service.
             age <- age + 1;
             service <- service + 1;
 
-            curStatus <- doesMemberRetire(age, service, curStatus, tier, verbose);
+            curStatus <- doesMemberRetire(age, sex, service, status=curStatus,
+                                          tier=tier, mortClass=mortClass,
+                                          verbose=verbose);
             if (verbose) cat(" Member age:", age, "service:", service,
                              "status:", curStatus, "\n");
         }
