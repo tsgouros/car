@@ -134,11 +134,9 @@ doesMemberDie <- function(memberAge, memberSex, memberStatus,
         }
     }
 
-    ## There are some improbable statuses that are actually sometimes
-    ## seen.
-    if ((memberAge > 80) & (memberStatus == "active")) {
-        memberAge <- 80;
-    }
+    ## There are some improbable statuses that are actually sometimes seen,
+    ## so limit the member ages to the ranges in the mortality tables.
+    if (memberStatus == "active") memberAge <- max(min(memberAge, 80), 18);
 
     ## We can also handle survivor and disability retirements.
     if (memberStatus == "retired/survivor") tempStatus <- "survivor";
