@@ -127,7 +127,7 @@ validateProjectPension <- function(status="active", adjYear=0, adjRetire=0,
     if (status == "active") {
         if (verbose) cat("active -> retired..adjYear:", adjYear,
                          "adjRetire:", adjRetire, "\n");
-        salaryHistory <- read.csv("validation-data/prov-validate-2.csv")  %>%
+        salaryHistory <- read.csv("../../validate/data/salary-validate-2.csv")  %>%
             mutate(year=year + adjYear,
                    pension=0);
         if (adjRetire > 0) {
@@ -138,7 +138,7 @@ validateProjectPension <- function(status="active", adjYear=0, adjRetire=0,
     } else if (status == "separated") {
         if (verbose) cat("separated -> retired..adjYear:", adjYear,
                          "adjRetire:", adjRetire, "\n");
-        salaryHistory <- read.csv("validation-data/prov-validate.csv")  %>%
+        salaryHistory <- read.csv("../../validate/data/salary-validate.csv")  %>%
             mutate(year=year + adjYear,
                    pension=0);
         if (adjRetire > 0) {
