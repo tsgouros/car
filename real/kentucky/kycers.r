@@ -254,16 +254,22 @@ doesMemberBecomeDisabled <- function(age, sex, service, status,
 projectSalaryDelta <- function(year, age, salary, service=1, tier="A",
                                mortClass="General", verbose=verbose) {
 
-    ## Appendix table I
-    if (service < 3) delta <- 1.065
-    else if (service < 5) delta <- 1.06
-    else if (service < 6) delta <- 1.05
-    else if (service < 12) delta <- 1.045
-    else delta <- 1.0425;
+    ## val report page 60
+    generalDelta <- c(1.1030, 1.0730, 1.0630, 1.0480, 1.0455, 1.0455, 1.0430,
+                      1.0430, 1.0405, 1.0405, 1.0380, 1.0380, 1.0355, 1.0355,
+                      1.0355, 1.0330);
+    safetyDelta <-  c(1.1905, 1.0755, 1.0555, 1.0480, 1.0455, 1.0455, 1.0455,
+                      1.0455, 1.0405, 1.0405, 1.0355, 1.0355, 1.0355, 1.0355,
+                      1.0355, 1.0355);
+
+    if (mortClass == "General") {
+        delta <- generalDelta[ min( service, 15 ) + 1 ];
+    } else if (mortClass == "Safety") {
+        delta <- safetyDelta[ min( service, 15 ) + 1 ];
+    }
 
     return(delta);
 }
-
 
 doesMemberHaveSurvivor <- function(age, sex, status, survivor,
                                    tier=tier, mortClass=mortClass,
@@ -272,6 +278,11 @@ doesMemberHaveSurvivor <- function(age, sex, status, survivor,
     validateInputsKY(age=age, sex=sex, service=service, status=status, tier=tier,
                      mortClass=mortClass, verbose=verbose);
 
+    ## If already retired with a survivor, or dead or disabled, get out.
+    if (checkStatus(status, acceptable=c("retired/survivor",
+                                         "deceased", "disabled/accident",
+                                         "disabled/ordinary"))) return(status);
+    
     ## We only want to do this once. And we probably want to do better
     ## (less retro?) choices of sex and age in the specialized versions.
     if ((status == "retired") && (survivor$status == "")) {
@@ -279,9 +290,9 @@ doesMemberHaveSurvivor <- function(age, sex, status, survivor,
         survivor$status <- "retired/survivor";
 
         if (sex == "M") {
-            survivor$age <- age - 2;
+            survivor$age <- age - round(rnorm(1, mean=3, sd=1));
         } else {
-            survivor$age <- age + 2;
+            survivor$age <- age + round(rnorm(1, mean=3, sd=1));
         }
         
         survivor$sex <- ifelse(sex=="M", "F", "M"); 
@@ -294,84 +305,203 @@ doesMemberHaveSurvivor <- function(age, sex, status, survivor,
 }
 
 
-
-
-## ACC val report, page 34.
-projectBasePension <- function(salaryHistory, mortClass="General", tier="A",
+## val report, page 72ff.
+## Note that this function is for calculating benefits, not determining
+## eligibility.
+projectBasePension <- function(salaryHistory, retirementType, retireYear,
+                               retireAge, retireService, retireStatus,
+                               mortClass="General", tier="A",
                                verbose=FALSE) {    
-    
-    ## Find first entry that is *not* active or separated. (Or d/a for ACC.)
-    retirementType <- first(salaryHistory$status[!salaryHistory$status %in%
-                                                 c("active", "separated",
-                                                   "disabled/accident")]);
 
-    if (verbose) cat("Retirement type:", retirementType);
-    
-    ## Find last entry before retirement.
-    preRetirementStatus <- salaryHistory %>%
-        filter(status %in% c("active", "separated", "disabled/accident")) %>%
-        group_by(status) %>%
-        dplyr::summarize(year=last(year),
-                         age=last(age),
-                         service=last(service));
-    ## Might be multiple rows, we want the last one.
-    preRetirementStatus <- preRetirementStatus[dim(preRetirementStatus)[1],];
+    if (verbose) cat("projectBasePension: ");
+    validateInputsKY(age=retireAge, service=retireService, status=retireStatus,
+                     tier=tier, mortClass=mortClass, verbose=verbose);
 
-    year <- preRetirementStatus[["year"]];
-    age <- preRetirementStatus[["age"]];
-    service <- preRetirementStatus[["service"]];
-    status <- preRetirementStatus[["status"]];
-        
-    if (verbose) cat(" -> year:", year, "age:", age,
-                     "service:", service, "status:", status, "\n");
-    
-    ## Find the average of the top three-year period. Note that this is different
-    ## from the top three years, but it will do for the model, since we don't
+    ## Find the average of the top five-year period. Note that this is different
+    ## from the top five years, but it will do for the model, since we don't
     ## use it to generate any pathological cases.
     s <- tail(salaryHistory$salary[salaryHistory$salary > 0], 10);
+    fiveYears <- c(s, 0, 0, 0, 0) + c(0, s, 0, 0, 0) + c(0, 0, s, 0, 0) +
+        c(0, 0, 0, s, 0) + c(0, 0, 0, 0, s);
+    avgSalaryFive <- max(fiveYears) / 5.0;
+
+    ## Turns out we also need the 3-year average for some calculations.
     threeYears <- c(s, 0, 0) + c(0, s, 0) + c(0, 0, s);
-    avgSalary <- max(threeYears) / 3.0;
+    avgSalaryThree <- max(threeYears) / 3.0;
 
-    if (grepl("retired", retirementType)) {
-        if (verbose) cat("Calculating pension for regular retirement: ")
-        if ((status == "active") || (status == "separated")) {
-            basePension <- max(0.0185 * avgSalary * min(service, 32) +
-                0.0025 * max(0, service - 32) * avgSalary, 240 * 12);
+    ## And also the final salary for some others. Wow.
+    finalSalary <- tail(s,1)
 
-            ## is this an early retirement?
-            if ((mortClass == "General") && (age <= 62)) {
-                basePension <- basePension * (1 - 0.00333 * 12 * (62 - age));
-            } else if ((mortClass == "Safety") && (age <= 60)) {
-                basePension <- basePension * (1 - 0.00333 * 12 * (60 - age));
+    if (tier == 1) {
+        if (mortClass == "General") {
+            if (grepl("retired", retirementType)) {
+                if (verbose) cat("Calculating regular General, 1 benefit: ")
+                if ((retireStatus == "active") || (retireStatus == "separated")) {
+                    basePension <- 0.022 * avgSalaryFive * retireService;
+                }
+            } else if (grepl("disabled", retirementType)) {
+                if (verbose) cat("Calculating disability General, 1 benefit: ")
+                if ((retireService == 25) || (retireService == 26)) retireService <- 27;
+                if (retireService < 25) retireService <- retireService + min(65 - retireAge, retireService);
+
+                basePension <- 0.022 * avgSalaryFive * retireService;
             }
-        }       
+        } else if (mortClass == "Safety") {
+            if (grepl("retired", retirementType)) {
+                if (verbose) cat("Calculating regular Safety, 1 benefit: ")
+                if ((retireStatus == "active") || (retireStatus == "separated")) {
+                    basePension <- 0.025 * avgSalaryThree * retireService;
+                }
+            } else if (grepl("disabled", retirementType)) {
+                if (verbose) cat("Calculating disability Safety, 1 benefit: ")
+                if (retireService < 20) retireService <- retireService + min(55 - retireAge, retireService);
 
-    } else {
-        ## Not a retirement. Return zero.
-        basePension <- 0;
+                basePension <- 0.025 * avgSalaryThree * retireService;
+            }
+        }
+    } else if (tier == 2) {
+        if (mortClass == "General") {
+            if (verbose) cat("Calculating regular General, 2 benefit: ")
+            if ((retireStatus == "active") || (retireStatus == "separated")) {
+                if (retireService <= 10) {
+                    benefitMultiplier <- 0.011;
+                } else if (retireService <= 20) {
+                    benefitMultiplier <- 0.013;
+                } else if (retireService <= 26) {
+                    benefitMultiplier <- 0.015;
+                } else {
+                    benefitMultiplier <- 0.0175;
+                }
+
+                basePension <- benefitMultiplier * avgSalaryFive * retireService;
+
+                if (retireService > 30) {
+                    basePension <-
+                        basePension + 0.0025 * avgSalaryFive * (retireService - 30);
+                }
+
+                if (grepl("disabled", retirementType)) {
+                    if (verbose) cat("Calculating disability General, 2 benefit: ")
+                    if ((retirementType == "disabled/ordinary") && (retireService < 5)) {
+                        basePension <- 0;
+                    } else {
+                        basePension <- max(0.2 * finalSalary, basePension);
+                    }
+                }
+            } else {
+                stop("Why is this not active or separated?", retireStatus);
+            }
+        } else if (mortClass == "Safety") {
+            if (verbose) cat("Calculating regular Safety, 2 benefit: ")
+            if ((retireStatus == "active") || (retireStatus == "separated")) {
+                if (retireService <= 10) {
+                    benefitMultiplier <- 0.013;
+                } else if (retireService <= 20) {
+                    benefitMultiplier <- 0.015;
+                } else if (retireService <= 25) {
+                    benefitMultiplier <- 0.0225;
+                } else {
+                    benefitMultiplier <- 0.025;
+                }
+
+                basePension <- benefitMultiplier * avgSalaryThree * retireService;
+
+                if (grepl("disabled", retirementType)) {
+                    if (verbose) cat("Calculating disability General, 2 benefit: ")
+                    if ((retirementType == "disabled/ordinary") && (retireService < 5)) {
+                        basePension <- 0;
+                    } else {
+                        basePension <- max(0.25 * finalSalary, basePension);
+                    }
+                }
+            } else {
+                stop("Why is this not active or separated?", retireStatus);
+            }
+        }
+    } else if (tier == 3) {
+        if (verbose) cat("Calculating annuity amount tier 3: ");
+          
+        ## This is the weird one. First task is to estimate the size of the
+        ## member's personal "account". Use this number for the actual accrual rate
+        ## enjoyed by a member. (Sponsor guarantees 4%, assumes 6.25%, offers 3/4 of
+        ## the difference between guaranteed and real.)
+        actualTierThreeAccrual <- 1.05;
+        
+        acctSum <- salaryHistory %>%
+            filter(year <= retireYear) %>%
+            mutate(acct=premium * actualTierThreeAccrual^(retireYear - year)) %>%
+            select(acct) %>% sum();
+
+        ## We are going to hack together an approximation for the annuity,
+        ## using these "annuity factors" published at
+        ## https://www.kyret.ky.gov/Members/Tier-3/Pages/Benefit-Calculation.aspx
+        ## Someone who retires at 65yo/$50k should have around $228k saved,
+        ## which would provide an income of around $17k. We use these other
+        ## factors to fudge a number for other ages. Each one starts at age 43.
+        generalAnnuityFactor <- c(203.182020, 201.601850, 199.945982, 198.226985,
+                                  196.446939, 194.610459, 192.722340, 190.791488,
+                                  188.829604, 186.783399, 184.650636, 182.426379,
+                                  180.106856, 177.687428, 175.163644, 172.542464,
+                                  169.925609, 167.346525, 164.764198, 162.142797,
+                                  159.451715, 156.665325, 153.762907, 150.728886,
+                                  147.552258, 144.226735, 140.750536, 137.125678,
+                                  133.358503, 129.458446, 125.438014, 121.312562,
+                                  117.098779, 112.815417, 108.482166, 104.119047,
+                                  99.746061, 95.382974);
+        safetyAnnuityFactor <- c(200.709276, 199.022455, 197.256200, 195.424407,
+                                 193.528832, 191.574284, 189.565335, 187.509206,
+                                 185.416934, 183.239644, 180.975153, 178.618594,
+                                 176.167668, 173.617409, 170.963698, 168.224667,
+                                 165.545982, 162.899727, 160.244237, 157.543528,
+                                 154.767311, 151.890423, 148.893196, 145.761198,
+                                 142.484927, 139.059905, 135.486120, 131.767698,
+                                 127.912922, 123.933232, 119.843128, 115.659498,
+                                 111.400832, 107.087137, 102.739047);
+
+        if (mortClass == "General") {
+            annuityFactor <- generalAnnuityFactor[min(retireAge, 80) - 42];
+            annuityFactor <- 0.075 * 153.762907 / annuityFactor;
+        } else if (mortClass == "Safety") {
+            annuityFactor <- generalAnnuityFactor[min(retireAge, 77) - 42];
+            annuityFactor <- 0.075 * 148.893196 / annuityFactor;
+        }
+        ## Don't really know if this is the right way to use these, but it
+        ## seems ok enough for the moment.
+
+        ## Now use the annuityFactor to estimate a base pension amount.
+        basePension <- acctSum * annuityFactor
+
+        if (grepl("disabled", retirementType)) {
+            if (verbose) cat("Calculating disability tier 3 benefit: ")
+            basePension <- max(0.25 * finalSalary, basePension);
+        }          
     }
-
+    
     return(basePension);
 }
 
 ## Apply the base pension to the first retirement year, then roll it
 ## forward according to the COLA for that tier and year.
-projectPensionPayments <- function(salaryHistory, basePension, tier="A",
+projectPensionPayments <- function(salaryHistory, basePension, retirementType,
+                                   retireYear, retireAge, retireService,
+                                   retireStatus, tier="A",
                                    mortClass=mortClass, verbose=FALSE) {
 
-    retireYear <- salaryHistory %>%
-        filter(status %in% c("retired", "disabled/ordinary")) %>%
-        dplyr::summarize(retireYear=min(year)) %>% as.numeric();
+    if (verbose) cat("projectPensionPayments: ");
+    validateInputsKY(age=retireAge, service=retireService, status=retireStatus,
+                     tier=tier, mortClass=mortClass, verbose=verbose);
 
-    ## Assumptions: No COLAs in ACC after 2018.
+    ## Assume zero COLA.
     salaryHistory <- salaryHistory %>%
         mutate(pension=ifelse((status %in% c("retired",
                                              "disabled/ordinary",
                                              "disabled/accident")),
                               basePension,
-                       ifelse(survivorStatus == "retired/survivor",
-                              basePension,
-                              0)));
+                              0));
+    ## We are not taking survivors into account, but we need to.
+                       ## ifelse(survivorStatus == "retired/survivor",
+                       ##        basePension,
+                       ##        0)));
 
     return(salaryHistory);
 }
@@ -381,12 +511,70 @@ projectPensionPayments <- function(salaryHistory, basePension, tier="A",
 projectPension <- function(salaryHistory, tier="A", mortClass="General",
                            verbose=FALSE) {
 
-    basePension <- projectBasePension(salaryHistory, tier=tier,
-                                      mortClass=mortClass, verbose=verbose);
+    if (verbose) cat("projectPension: ");
+    validateInputsKY(tier=tier, mortClass=mortClass, verbose=verbose);
+    
+    ## Find last entry before retirement.
+    preRetirementStatus <- salaryHistory %>%
+        filter(status %in% c("active", "separated")) %>%
+        group_by(status) %>%
+        dplyr::summarize(year=last(year),
+                         age=last(age),
+                         service=last(service));
+    ## Might be multiple rows, we want the last one.
+    preRetirementStatus <- preRetirementStatus[dim(preRetirementStatus)[1],];
+
+    retireYear <- preRetirementStatus[["year"]];
+    retireAge <- preRetirementStatus[["age"]];
+    retireService <- preRetirementStatus[["service"]];
+    retireStatus <- preRetirementStatus[["status"]];
+        
+    if (verbose) cat(" -> year:", retireYear, "age:", retireAge,
+                     "service:", retireService, "status:", retireStatus, "\n");
+    
+    ## Now find first entry that is *not* active or separated.
+    retirementType <- first(salaryHistory$status[!salaryHistory$status %in%
+                                                 c("active", "separated")]);
+
+    ## Is this an early retirement? "retired/early" is not a status that will
+    ## ever show up in a salaryHistory, but it's useful here to set out the
+    ## pension payments for tiers 1 and 2.
+    if (retirementType == "retired") {
+        if (tier == "1") {
+            if (mortClass == "General") {
+                if ((retireAge < 65) && (retireService < 27)) {
+                    retirementType <- "retired/early";
+                }
+            } else if (mortClass == "Safety") {
+                if ((retireAge < 55) && (retireService < 20)) {
+                    retirementType <- "retired/early";
+                }
+            }
+        } else if (tier == "2") {
+            if (mortClass == "General") {
+                if ((retireAge < 65) && ((retireAge + retireService) < 87)) {
+                    retirementType <- "retired/early";
+                }
+            } else if (mortClass == "Safety") {
+                if ((retireAge < 60) && (retireService < 25)) {
+                    retirementType <- "retired/early";
+                }
+            }
+        }
+    }
+    
+    if (verbose) cat("Retirement type:", retirementType);
+    
+    basePension <- projectBasePension(salaryHistory, retirementType, retireYear,
+                                      retireAge, retireService, retireStatus,
+                                      tier=tier, mortClass=mortClass,
+                                      verbose=verbose);
 
     if (verbose) cat("Base pension: ", round(basePension), "\n", sep="");
     
-    salaryHistory <- projectPensionPayments(salaryHistory, basePension, tier=tier,
+    salaryHistory <- projectPensionPayments(salaryHistory, basePension,
+                                            retirementType, retireYear, retireAge,
+                                            retireService, retireStatus, tier=tier,
                                             mortClass=mortClass, verbose=verbose);
 
     return(salaryHistory);
