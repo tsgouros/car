@@ -38,7 +38,7 @@ doesMemberSeparate <- function(age, sex, service, status="active", tier="1",
     ## If this is not currently an active employee, get out.
     if (!checkStatus(status, acceptable=c("active"))) return(status);
 
-    ## Percentages from p.67 of the val report.
+    ## Percentages from p.62 of the val report.
     if (mortClass == "General") {
         thresholds <- c(20.00, 15.58, 12.48, 10.66, 9.37,
                         8.37, 7.56, 6.87, 6.27, 5.74,
@@ -54,11 +54,10 @@ doesMemberSeparate <- function(age, sex, service, status="active", tier="1",
     }
 
     ## Roll the dice.
-    if (service < 1) service <- 1;
-    if (service > 25) service <- 25;
+    service <- max(min(service, 25), 1);
     if (runif(1) < thresholds[service]/100.0) status <- "separated";
 
-    if (verbose) cat(" threshold:", threshold, "new status:", status, "\n");
+    if (verbose) cat(" threshold:", thresholds[service], "new status:", status, "\n");
 
     return(status);
 }
@@ -160,7 +159,7 @@ doesMemberRetire <- function(age, sex, service, status="active", year=2022,
                 if (age < 65) {
                     threshold <- safetyRetireTierOne[min(max(service - 4, 1), 25)];
                 } else {
-                    threshold <- 1.0;
+                    threshold <- 100.0;
                 }
             } else if (((age >= 55) && (service >= 1)) ||
                        (service > 20) ||
@@ -172,7 +171,7 @@ doesMemberRetire <- function(age, sex, service, status="active", year=2022,
                 if (service < 5) {
                     threshold <- safetyRetireTierTwo[min(max(service - 24, 1), 6)];
                 } else {
-                    threshold <- 1.0;
+                    threshold <- 100.0;
                 }
             } else if ((service >= 25) ||
                        ((age >= 50) && (service >= 15))) {   # (Early retirement.)
@@ -183,7 +182,7 @@ doesMemberRetire <- function(age, sex, service, status="active", year=2022,
                 if (service < 5) {
                     threshold <- safetyRetireTierThree[min(max(service - 24, 1), 6)];
                 } else {
-                    threshold <- 1.0;
+                    threshold <- 100.0;
                 }
             } else if (service >= 25) {
                 threshold <- safetyRetireTierThree[min(max(service - 24, 1), 6)];
@@ -201,7 +200,8 @@ doesMemberRetire <- function(age, sex, service, status="active", year=2022,
         ## Roll the dice.
         if (runif(1) < threshold/100.0) status <- "retired";
     
-        if (verbose) cat("result: ", status, "\n", sep="");
+        if (verbose) cat("result: ", status, ", threshold:", threshold/100.0,
+                         "\n", sep="");
 
         return(status);
     }
@@ -212,7 +212,7 @@ doesMemberBecomeDisabled <- function(age, sex, service, status,
                                      mortClass="General", tier="A",
                                      verbose=FALSE) {
 
-    if (verbose) cat("doesMemberDisableOrdinary: ");
+    if (verbose) cat("doesMemberBecomeDisabled: ");
     validateInputs(age=age, sex=sex, service=service, status=status, tier=tier,
                    mortClass=mortClass, verbose=verbose);
 
@@ -224,7 +224,7 @@ doesMemberBecomeDisabled <- function(age, sex, service, status,
     ## The KY system has one table for disability probabilities, and then
     ## assumes a fixed percentage of them are accidental, with that fixed
     ## percentage being a function of the mortClass.
-    ageClass <- min(floor((age-10)/10), 5);
+    ageClass <- min(floor((max(age, 20)-10)/10), 5);
 
     ## Numbers from table on page 62
     if (mortClass == "General") {
@@ -232,7 +232,7 @@ doesMemberBecomeDisabled <- function(age, sex, service, status,
     } else if (mortClass == "Safety") {
         threshold <- c(0.07, 0.12, 0.26, 0.73, 1.90)[ageClass]
     }
-    
+
     ## Roll dice
     if (runif(1) < threshold/100) status <- "disabled/ordinary";
 
@@ -271,11 +271,12 @@ projectSalaryDelta <- function(year, age, salary, service=1, tier="A",
     return(delta);
 }
 
-doesMemberHaveSurvivor <- function(age, sex, status, survivor,
+doesMemberHaveSurvivor <- function(age, sex, status, service, survivor,
                                    tier=tier, mortClass=mortClass,
                                    verbose=verbose) {
 
-    validateInputsKY(age=age, sex=sex, service=service, status=status, tier=tier,
+    if (verbose) cat("doesMemberHaveSurvivor: ");
+    validateInputsKY(age=age, sex=sex, status=status, tier=tier,
                      mortClass=mortClass, verbose=verbose);
 
     ## If already retired with a survivor, or dead or disabled, get out.
@@ -459,15 +460,17 @@ projectBasePension <- function(salaryHistory, retirementType, retireYear,
                                  111.400832, 107.087137, 102.739047);
 
         if (mortClass == "General") {
-            annuityFactor <- generalAnnuityFactor[min(retireAge, 80) - 42];
+            annuityFactor <- generalAnnuityFactor[min(max(retireAge, 43), 80) - 42];
             annuityFactor <- 0.075 * 153.762907 / annuityFactor;
         } else if (mortClass == "Safety") {
-            annuityFactor <- generalAnnuityFactor[min(retireAge, 77) - 42];
+            annuityFactor <- safetyAnnuityFactor[min(max(retireAge, 43), 77) - 42];
             annuityFactor <- 0.075 * 148.893196 / annuityFactor;
         }
         ## Don't really know if this is the right way to use these, but it
         ## seems ok enough for the moment.
 
+        if (verbose) cat ("\nacctSum:", acctSum, "annuityFactor:",
+                          annuityFactor, "retireAge:", retireAge, "\n");
         ## Now use the annuityFactor to estimate a base pension amount.
         basePension <- acctSum * annuityFactor
 
@@ -476,7 +479,7 @@ projectBasePension <- function(salaryHistory, retirementType, retireYear,
             basePension <- max(0.25 * finalSalary, basePension);
         }          
     }
-    
+
     return(basePension);
 }
 
@@ -492,17 +495,24 @@ projectPensionPayments <- function(salaryHistory, basePension, retirementType,
                      tier=tier, mortClass=mortClass, verbose=verbose);
 
     ## Assume zero COLA.
-    salaryHistory <- salaryHistory %>%
-        mutate(pension=ifelse((status %in% c("retired",
-                                             "disabled/ordinary",
-                                             "disabled/accident")),
-                              basePension,
-                              0));
-    ## We are not taking survivors into account, but we need to.
-                       ## ifelse(survivorStatus == "retired/survivor",
-                       ##        basePension,
-                       ##        0)));
-
+    if ("survivorStatus" %in% names(salaryHistory)) {
+        salaryHistory <- salaryHistory %>%
+            mutate(pension=ifelse((status %in% c("retired",
+                                                 "disabled/ordinary",
+                                                 "disabled/accident")),
+                                  basePension,
+                           ifelse(survivorStatus == "retired/survivor",
+                                  basePension*0.75,
+                                  0)));
+    } else {
+        salaryHistory <- salaryHistory %>%
+            mutate(pension=ifelse((status %in% c("retired",
+                                                 "disabled/ordinary",
+                                                 "disabled/accident")),
+                                  basePension,
+                                  0));
+    }
+        
     return(salaryHistory);
 }
 
@@ -587,9 +597,10 @@ projectPension <- function(salaryHistory, tier="A", mortClass="General",
 projectPremiums <- function(salaryHistory, tier="A", mortClass="General",
                             verbose=FALSE) {
 
+    ## FINISH THIS ONE 1/16/23
     premiumPerPayroll <- .145;
 
-    if (verbose) cat("Running projectPremiums from acc.r, tier:", tier,
+    if (verbose) cat("Running projectPremiums from kycers.r, tier:", tier,
                      "premium % payroll:", premiumPerPayroll * 100, "%\n");
     
     return(salaryHistory %>%
@@ -601,34 +612,77 @@ projectPremiums <- function(salaryHistory, tier="A", mortClass="General",
 ############################################################################
 ## The above is all about specifying the benefits. Now we model the
 ## actual population and then run the model.
-accModel <- function(verbose=FALSE) {
+kyModel <- function(verbose=FALSE) {
 
-    xlfile <- "../../acc/data/ACC-scratch.xlsx";
+    xlfile <- "../../../kentucky/kycers-population.xlsx";
     
     if (verbose) cat("building model", date(), "from", xlfile, "\n");
 
-    accDemo <- read_excel(xlfile, sheet="demographics", range="A1:J101",
-                          col_types=c(rep("numeric", 8), rep("text", 2)));
+    kyGeneral <- read_excel(xlfile, sheet="General", range="A1:F106",
+                            col_types=rep("numeric", 6));
+    kySafety <- read_excel(xlfile, sheet="Safety", range="A1:F106",
+                           col_types=rep("numeric", 6));
 
-    accModel <- memberList();
-    for (i in 1:dim(accDemo)[1]) {
-        accModel <- genEmployees(accDemo$N[i],
-                                 ageRange=c(accDemo$minAge[i], accDemo$maxAge[i]),
-                                 servRange=c(accDemo$minService[i], accDemo$maxService[i]),
-                                 avgSalary=accDemo$avgSalary[i],
-                                 sex=list(M=accDemo$M[i], F=accDemo$F[i]),
-                                 class=accDemo$mortClass[i],
-                                 tier=accDemo$tier[i],
-                                 currentYear=2020,
-                                 members=accModel,
-                                 verbose=verbose)
+    kyModel <- memberList();
+    for (i in 1:dim(kyGeneral)[1]) {
+        if (2022 - kyGeneral$minService[i] <= 2008) {
+            tier <- "1";
+        } else if (2022 - kyGeneral$minService[i] <= 2014) {
+            tier <- "2";
+        } else {
+            tier <- "3";
+        }
+
+        if (verbose)
+            cat(">>", i, ":generating", kyGeneral$N[i], "General employees, ages",
+            kyGeneral$minAge[i], "-", kyGeneral$maxAge[i], "service",
+            kyGeneral$minService[i], "-", kyGeneral$maxService[i], "\n");
+        kyModel <- genEmployees(ceiling(2+log(kyGeneral$N[i])),
+                                ageRange=c(kyGeneral$minAge[i], kyGeneral$maxAge[i]),
+                                servRange=c(kyGeneral$minService[i],
+                                            kyGeneral$maxService[i]),
+                                avgSalary=kyGeneral$avgSalary[i],
+                                sex=list(M=0.45, F=0.55),
+                                class="General",
+                                tier=tier,
+                                currentYear=2022,
+                                members=kyModel,
+                                verbose=verbose)
     }
+
+    for (i in 1:dim(kySafety)[1]) {
+        if (2022 - kySafety$minService[i] <= 2008) {
+            tier <- "1";
+        } else if (2022 - kySafety$minService[i] <= 2014) {
+            tier <- "2";
+        } else {
+            tier <- "3";
+        }
+        
+        if (verbose)
+            cat(">>", i, ":generating", kySafety$N[i], "Safety employees, ages",
+            kySafety$minAge[i], "-", kySafety$maxAge[i], "service",
+            kySafety$minService[i], "-", kySafety$maxService[i], "\n");
+        kyModel <- genEmployees(ceiling(2+log(kySafety$N[i])),
+                                ageRange=c(kySafety$minAge[i], kySafety$maxAge[i]),
+                                servRange=c(kySafety$minService[i],
+                                            kySafety$maxService[i]),
+                                avgSalary=kySafety$avgSalary[i],
+                                sex=list(M=0.45, F=0.55),
+                                class="Safety",
+                                tier=tier,
+                                currentYear=2022,
+                                members=kyModel,
+                                verbose=verbose)
+    }
+
+    
     
     if (verbose) cat("finished building model", date(), "\n");
     
-    return(accModel);
+    return(kyModel);
 }
 
-##accModelOutputLg <- runModel(accModel, N=75, verbose=TRUE, reallyVerbose=FALSE,
+##kyModelOutputLg <- runModel(kyModel, N=75, verbose=TRUE, reallyVerbose=FALSE,
 ##                           audit=TRUE);
 
