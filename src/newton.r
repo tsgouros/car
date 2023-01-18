@@ -58,6 +58,10 @@ findRate <- function(cashFlow, futureVal=0, flowName="flow",
     ## Check to see if this is empty or pathological.  We have to have
     ## at least one entry above zero and one entry below.
     bounds <- cashFlow %>% summarize(max=max(flow), min=min(flow));
+    if (is.na(bounds$min) || is.na(bounds$max)) {
+        print(as.data.frame(cashFlow));
+        stop("There are NAs in the cash flow.\n");
+    }
     if (bounds$max * bounds$min >= 0) {
         if (verbose) cat("Need positive and negative values.\n");
         return(NA);
