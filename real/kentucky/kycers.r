@@ -597,14 +597,27 @@ projectPension <- function(salaryHistory, tier="A", mortClass="General",
 projectPremiums <- function(salaryHistory, tier="A", mortClass="General",
                             verbose=FALSE) {
 
-    ## FINISH THIS ONE 1/16/23
-    premiumPerPayroll <- .145;
+    if (verbose) cat("Running projectPremiums from kycers.r, tier:", tier, "\n");
 
-    if (verbose) cat("Running projectPremiums from kycers.r, tier:", tier,
-                     "premium % payroll:", premiumPerPayroll * 100, "%\n");
-    
-    return(salaryHistory %>%
-           mutate(premium = salary * premiumPerPayroll))
+    if (mortClass == "General") {
+        if ((tier == "1") || (tier == "2")) {
+            out <- salaryHistory %>%
+                mutate(premium = salary * ifelse(year < 2017, 0.084, 0.104));
+        } else { ## Tier 3
+            out <- salaryHistory %>%
+                mutate(premium = salary * 0.09);
+        }
+    } else { ## Safety
+        if ((tier == "1") || (tier == "2")) {
+            out <- salaryHistory %>%
+                mutate(premium = salary * ifelse(year < 2018, 0.14, 0.185));
+        } else { ## Tier 3
+            out <- salaryHistory %>%
+                mutate(premium = salary * 0.09);
+        }
+    }
+
+    return(out);
 }
 
 
@@ -637,7 +650,7 @@ kyModel <- function(verbose=FALSE) {
             cat(">>", i, ":generating", kyGeneral$N[i], "General employees, ages",
             kyGeneral$minAge[i], "-", kyGeneral$maxAge[i], "service",
             kyGeneral$minService[i], "-", kyGeneral$maxService[i], "\n");
-        kyModel <- genEmployees(ceiling(2+log(kyGeneral$N[i])),
+        kyModel <- genEmployees(ceiling(kyGeneral$N[i]/4),
                                 ageRange=c(kyGeneral$minAge[i], kyGeneral$maxAge[i]),
                                 servRange=c(kyGeneral$minService[i],
                                             kyGeneral$maxService[i]),
@@ -663,7 +676,7 @@ kyModel <- function(verbose=FALSE) {
             cat(">>", i, ":generating", kySafety$N[i], "Safety employees, ages",
             kySafety$minAge[i], "-", kySafety$maxAge[i], "service",
             kySafety$minService[i], "-", kySafety$maxService[i], "\n");
-        kyModel <- genEmployees(ceiling(2+log(kySafety$N[i])),
+        kyModel <- genEmployees(ceiling(kySafety$N[i]/4),
                                 ageRange=c(kySafety$minAge[i], kySafety$maxAge[i]),
                                 servRange=c(kySafety$minService[i],
                                             kySafety$maxService[i]),
@@ -683,6 +696,6 @@ kyModel <- function(verbose=FALSE) {
     return(kyModel);
 }
 
-##kyModelOutputLg <- runModel(kyModel, N=75, verbose=TRUE, reallyVerbose=FALSE,
-##                           audit=TRUE);
+kyModelOutputLg <- runModel(kyModel, N=15, verbose=TRUE, reallyVerbose=FALSE,
+                            audit=TRUE);
 
