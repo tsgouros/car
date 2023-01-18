@@ -47,7 +47,8 @@ validateInputs <- function(age=20, ageRange=c(20,120),
 
 
     if (verbose) cat("age:", age, ", sex:", sex, ", status:", status,
-                     ", mortClass:", mortClass, ", tier:", tier, "\n", sep="");
+                     ", service:", service, ", mortClass:", mortClass,
+                     ", tier:", tier, "\n", sep="");
     
     if (!is.numeric(age))
         return(paste0("Age is not numeric: ", age))
@@ -213,13 +214,13 @@ doesMemberDisableAccident <- function(age, sex, service, status,
     return(status);
 }
 
-doesMemberHaveSurvivor <- function(age, sex, status, survivor,
+doesMemberHaveSurvivor <- function(age, sex, status, service, survivor,
                                    tier=tier, mortClass=mortClass,
                                    verbose=verbose) {
 
     cat("Running default doesMemberHaveSurvivor\n");
 
-    if (verbose) cat("doesMemberDisableAccident: ");
+    if (verbose) cat("doesMemberHaveSurvivor: ");
     validateInputs(age=age, sex=sex, service=service, status-status, tier=tier,
                    mortClass=mortClass, verbose=verbose);
     
@@ -414,6 +415,11 @@ simulateCareerForward <- function(year, age, service, salary,
     ages <- c(age);
     services <- c(service);
     statuses <- c(as.character(status));
+
+    ## We keep track of the current status of a potential survivor with the
+    ## 'survivor' list. We accumulate that potential survivor's age and status,
+    ## in case it later seems appropriate to append that to the salaryHistory.
+    survivor <- list(status="", age=0, sex="");
     survivorStatuses <- c();
     survivorAges <- c();
     
@@ -425,7 +431,6 @@ simulateCareerForward <- function(year, age, service, salary,
     currentStatus <- status;
     currentService <- service + 1;
    
-    survivor <- list(status="", age=0, sex="");
     iyear <- year + 1;
     ## The loop is supposed to terminate when retiree and survivor are
     ## deceased. This limit is here just in case.
@@ -461,7 +466,8 @@ simulateCareerForward <- function(year, age, service, salary,
         ## history until the currentStatus is "deceased", below.
         if (currentStatus == "retired")
             survivor <-
-                doesMemberHaveSurvivor(testAge, sex, currentStatus, survivor,
+                doesMemberHaveSurvivor(testAge, sex, currentStatus, currentService,
+                                       survivor,
                                        tier=tier, mortClass=mortClass,
                                        verbose=verbose);
 
@@ -655,6 +661,11 @@ member <- function(age=0, service=0, salary=0,
                    sex="M", mortClass="General", tier="1",
                    status="active", note="", verbose=FALSE) {
 
+    if (verbose) cat("Creating a member with birthYear:", birthYear, ", age: ", age,
+                     ", sex: ", sex, ", mortClass: ", mortClass,
+                     "\nhireYear: ", hireYear, ", sepYear: ", sepYear,
+                     ", retireYear: ", retireYear, ", tier: ", tier, "\n", sep="");
+    
     ## The possible status codes as of this telling are: active,
     ##   separated, retired, retired/survivor, deceased,
     ##   disabled/accident, and disabled/ordinary.
@@ -894,6 +905,68 @@ memberList <- function(members=c()) {
     return(out);
 }
 
+## We want a second 'print' for memberLists that presents a summary. Tried
+## 'summary.memberList' but summary sort of does something different, and packs
+## its output into a vector. I just want a quick summary of a huge list. So we
+## define a generic function for these objects.
+synopsize <- function(object, ...) UseMethod("synopsize");
+synopsize.default <- function(object, ...) print(object)
+
+synopsize.memberList <- function(ml, ...) {
+
+    sumList <- sapply(ml, function(x) { c(x$birthYear, x$hireYear, x$retireYear,
+                                          last(x$salaryHistory$year), x$sepYear,
+                                          x$sex, x$tier, x$mortClass)},
+                      simplify="array") %>%
+        t();
+
+    sumTbl <- tibble(members=rownames(sumList),
+                     birthYear=as.numeric(sumList[,1]),
+                     hireYear=as.numeric(sumList[,2]),
+                     retireYear=as.numeric(sumList[,3]),
+                     deathYear=as.numeric(sumList[,4]),
+                     sepYear=as.numeric(sumList[,5]),
+                     sex=as.factor(sumList[,6]),
+                     tier=as.factor(sumList[,7]),
+                     mortClass=as.factor(sumList[,8]))
+
+    summ <- sumTbl %>% dplyr::summarize(minBirthYear=min(birthYear, na.rm=TRUE),
+                                        maxBirthYear=max(birthYear, na.rm=TRUE),
+                                        minHireYear=min(hireYear, na.rm=TRUE),
+                                        maxHireYear=max(hireYear, na.rm=TRUE),
+                                        minRetireYear=min(retireYear, na.rm=TRUE),
+                                        maxRetireYear=max(retireYear, na.rm=TRUE),
+                                        minDeathYear=min(deathYear, na.rm=TRUE),
+                                        maxDeathYear=max(deathYear, na.rm=TRUE))
+    
+    out <- list(birthYears=list(min=summ$minBirthYear, max=summ$maxBirthYear),
+                hireYears=list(min=summ$minHireYear, max=summ$maxHireYear),
+                retireYears=list(min=summ$minRetireYear, max=summ$maxRetireYear),
+                deathYears=list(min=summ$minDeathYear, max=summ$maxDeathYear),
+                sexes=summary(sumTbl$sex),
+                tiers=summary(sumTbl$tier),
+                mortClasses=summary(sumTbl$mortClass));
+
+    cat(length(ml), " members\n",
+        "  birthYears: ", out$birthYears$min, "--", out$birthYears$max,
+        ", hireYears: ", out$hireYears$min, "--", out$hireYears$max, "\n",
+        "  retireYears: ", out$retireYears$min, "--", out$retireYears$max,
+        ", deathYears: ", out$deathYears$min, "--", out$deathYears$max,
+        "\n  Sexes: ", sep="");
+    for (i in 1:length(out$sexes))
+        cat(names(out$sexes)[i], ": ", out$sexes[i],
+            " (", format(100*out$sexes[i]/sum(out$sexes), digits=3),
+            "%) ", sep="");
+    cat("\n  Tiers: ");
+    for (i in 1:length(out$tiers)) cat(names(out$tiers)[i], ": ", out$tiers[i],
+            " (", format(100*out$tiers[i]/sum(out$tiers), digits=3),
+            "%) ", sep="");
+    cat("\n  Mortality Classes: ");
+    for (i in 1:length(out$mortClasses)) cat(names(out$mortClasses)[i], ": ",
+            " (", format(100*out$mortClasses[i]/sum(out$mortClasses), digits=3),
+            "%) ", sep="");
+    cat("\n");
+}
 
 format.memberList <- function(ml, ...) {
     out <- "";
@@ -938,6 +1011,8 @@ genEmployees <- function (N=1, ageRange=c(20,25), servRange=c(0,5),
                           class="General", status="active",
                           verbose=FALSE) {
 
+    if (N < 1) return(members);
+    
     if (verbose) cat("Creating", N, "members in", currentYear, "\n",
                      "avgSalary:", avgSalary, "age range:", ageRange[1], "-",
                      ageRange[2], "service:", servRange[1], "-", servRange[2],
@@ -950,10 +1025,9 @@ genEmployees <- function (N=1, ageRange=c(20,25), servRange=c(0,5),
                     function(x) { min(19, x) });
     salaries <- rnorm(N, mean=avgSalary, sd=sdSalary);
 
-    ## The sex arg can be a list like (M=0.4, F=0.6) indicating
-    ## proportions of the population. We assume the components add up
-    ## to 1 and are only M and F. Will change this when mortality
-    ## tables change it.
+    ## The sex arg can be a list like (M=0.4, F=0.6) indicating proportions of
+    ## the population. We assume the components add up to 1 and are only M and
+    ## F. Will change this when mortality tables change it.
     if (is.list(sex)) {
         sex <- ifelse(runif(N) < sex$M, "M", "F");
     } else {
@@ -971,11 +1045,11 @@ genEmployees <- function (N=1, ageRange=c(20,25), servRange=c(0,5),
     return(members);
 }
 
-## Make a tibble from a memberList.  The sampler is a function that
-## takes a member object and returns TRUE or FALSE whether it should
-## be included in the output tibble.
+## Make a tibble from a memberList.  The sampler is a function that takes a
+## member object and returns TRUE if it should be included in the output
+## tibble.
 ##
-## e.g. function(m) { ifelse(m$tier == 1, TRUE, FALSE) }
+## e.g. function(m) { ifelse(m$tier == "1", TRUE, FALSE) }
 ##
 makeTbl <- function(memberList, sampler=function(m) {TRUE} ) {
 
@@ -1010,13 +1084,13 @@ buildMasterCashFlow <- function(memberTbl, members, verbose=FALSE) {
     ## Get all the retireYears, in order.
     retireYears <- unique(memberTbl$retireYear)
     retireYears <- retireYears[order(retireYears, na.last=NA)];
-
-    ## Initialize output tbl.
-    out <- tibble(year=startYear:endYear);
     nYears <- endYear - startYear + 1;
 
     if (verbose) cat("Starting at", startYear, "ending at", endYear,
                      "n =", nYears, "\n");
+
+    ## Initialize output tbl.
+    out <- tibble(year=startYear:endYear);
 
     ## Loop through all the potential retirement classes, even if
     ## they're empty.
@@ -1117,11 +1191,21 @@ runModelOnce <- function(modelConstructionFunction,
         }
     }
 
-    return(list(model=model,
+    out <- list(model=model,
                 modelTbl=modelTbl,
                 modelMCF=modelMCF,
-                modelOut=modelOut));
+                modelOut=modelOut);
+    attr(out, "class") <- "modelOutput";
+
+    return(out);
 }
+
+print.modelOutput <- function(mo, ...) {
+    cat("model:\n");
+    synopsis(mo$model);
+}
+        
+
 
 runModel <- function(modelConstructionFunction, N=1,
                      sampler=function(m) {TRUE},
