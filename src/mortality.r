@@ -93,7 +93,7 @@ doesMemberDie <- function(memberAge, memberSex, memberStatus,
     ## If the member is already dead, they can't be deader.
     if (memberStatus == "deceased") return(memberStatus);
     
-    if (verbose) cat("\n   rolling dice for ", mortClass,
+    if (verbose) cat("doesMemberDie: ", mortClass,
                      "; ", memberStatus, " member (", memberSex,
                      "), aged ", memberAge, "...", sep="");
 
@@ -118,10 +118,6 @@ doesMemberDie <- function(memberAge, memberSex, memberStatus,
         }
     }
 
-    ## The mortality tables don't contemplate retirement before 50,
-    ## but it does happen, so...
-    if ((memberStatus == "retired") & (memberAge < 50)) memberAge <- 50;
-
     ## We aren't really interested in former members who are
     ## separated, but never retire, but they play a role, so we age
     ## them and roll their dice, too.
@@ -138,8 +134,15 @@ doesMemberDie <- function(memberAge, memberSex, memberStatus,
     ## so limit the member ages to the ranges in the mortality tables.
     if (memberStatus == "active") memberAge <- max(min(memberAge, 80), 18);
 
+    ## The mortality tables don't contemplate retirement before 50,
+    ## but it does happen, so...
+    if (memberStatus == "retired") memberAge <- min(max(memberAge, 55), 120);
+
     ## We can also handle survivor and disability retirements.
-    if (memberStatus == "retired/survivor") tempStatus <- "survivor";
+    if (memberStatus == "retired/survivor") {
+        tempStatus <- "survivor";
+        memberAge <- min(max(memberAge, 45), 120);
+    }
     if (grepl("disabled", memberStatus)) tempStatus <- "disabled";
 
     ## Find the threshold for this member.
