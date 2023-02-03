@@ -494,22 +494,56 @@ projectPensionPayments <- function(salaryHistory, basePension, retirementType,
     validateInputsKY(age=retireAge, service=retireService, status=retireStatus,
                      tier=tier, mortClass=mortClass, verbose=verbose);
 
+    ## If this is an early retirement, how early?
+    howEarly <- 0.0;
+    if (retirementType == "retired/early") {
+        if (mortClass == "General") {
+            if (tier == "1") {
+                howEarly <- max(0, min(27 - retireService, 65 - retireAge));
+            } else if (tier == "2") {
+                howEarly <- max(0, min(65 - retireAge,
+                                       retireAge + retireService - 87));
+            } else {
+                howEarly <- 0.0;
+            }
+        } else if (mortClass == "Safety") {
+            if (tier == "1") {
+                howEarly <- max(0, min(20 - retireService, 55 - retireAge));
+            } else if (tier == "2") {
+                howEarly <- max(0, min(25 - retireService, 60 - retireAge));
+            } else {
+                howEarly <- 0.0;
+            }
+        }
+    }
+    
     ## Assume zero COLA.
+    cola <- 1.00;
     if ("survivorStatus" %in% names(salaryHistory)) {
         salaryHistory <- salaryHistory %>%
-            mutate(pension=ifelse((status %in% c("retired",
+            mutate(earlyFactor=1.0 - howEarly * ifelse(year - retireYear <= 5,
+                                                       .065,
+                                                ifelse(year - retireYear <= 10,
+                                                       .045,
+                                                       0)),
+                   pension=ifelse((status %in% c("retired",
                                                  "disabled/ordinary",
                                                  "disabled/accident")),
-                                  basePension,
+                                  earlyFactor * basePension * cola^(year - retireYear),
                            ifelse(survivorStatus == "retired/survivor",
-                                  basePension*0.75,
+                                  earlyFactor * basePension * 0.75 * cola^(year - retireYear),
                                   0)));
     } else {
         salaryHistory <- salaryHistory %>%
-            mutate(pension=ifelse((status %in% c("retired",
+            mutate(earlyFactor=1.0 - howEarly * ifelse(year - retireYear <= 5,
+                                                       .065,
+                                                ifelse(year - retireYear <= 10,
+                                                       .045,
+                                                 0)),
+                   pension=ifelse((status %in% c("retired",
                                                  "disabled/ordinary",
                                                  "disabled/accident")),
-                                  basePension,
+                                  earlyFactor * basePension * cola^(year - retireYear),
                                   0));
     }
         
@@ -613,7 +647,7 @@ projectPremiums <- function(salaryHistory, tier="A", mortClass="General",
                 mutate(premium = salary * ifelse(year < 2018, 0.14, 0.185));
         } else { ## Tier 3
             out <- salaryHistory %>%
-                mutate(premium = salary * 0.09);
+                mutate(premium = salary * 0.155);
         }
     }
 
@@ -650,7 +684,7 @@ kyModel <- function(verbose=FALSE) {
             cat(">>", i, ":generating", kyGeneral$N[i], "General employees, ages",
             kyGeneral$minAge[i], "-", kyGeneral$maxAge[i], "service",
             kyGeneral$minService[i], "-", kyGeneral$maxService[i], "\n");
-        kyModel <- genEmployees(ceiling(kyGeneral$N[i]/4),
+        kyModel <- genEmployees(ceiling(kyGeneral$N[i]/10),
                                 ageRange=c(kyGeneral$minAge[i], kyGeneral$maxAge[i]),
                                 servRange=c(kyGeneral$minService[i],
                                             kyGeneral$maxService[i]),
@@ -671,17 +705,17 @@ kyModel <- function(verbose=FALSE) {
         } else {
             tier <- "3";
         }
-        
+     
         if (verbose)
             cat(">>", i, ":generating", kySafety$N[i], "Safety employees, ages",
             kySafety$minAge[i], "-", kySafety$maxAge[i], "service",
             kySafety$minService[i], "-", kySafety$maxService[i], "\n");
-        kyModel <- genEmployees(ceiling(kySafety$N[i]/4),
+        kyModel <- genEmployees(ceiling(kySafety$N[i]/10),
                                 ageRange=c(kySafety$minAge[i], kySafety$maxAge[i]),
                                 servRange=c(kySafety$minService[i],
                                             kySafety$maxService[i]),
                                 avgSalary=kySafety$avgSalary[i],
-                                sex=list(M=0.45, F=0.55),
+                                sex=list(M=0.5, F=0.5),
                                 class="Safety",
                                 tier=tier,
                                 currentYear=2022,
@@ -696,6 +730,16 @@ kyModel <- function(verbose=FALSE) {
     return(kyModel);
 }
 
-kyModelOutputLg <- runModel(kyModel, N=15, verbose=TRUE, reallyVerbose=FALSE,
-                            audit=TRUE);
+kyModelOutput <- runModel(kyModel, N=10, verbose=TRUE, reallyVerbose=FALSE,
+                          audit=TRUE);
 
+
+a <- altPlotModelOut(kyModelOutputTierOneHaz[[1]],
+                     ylimits=c(0,0.11),xlimits=c(2020,2070)) +
+    scale_y_continuous(breaks=c(0,.025,.05,.075,.1),
+                       limits=c(0,.11),
+                       labels=c("0%","2.5%","5%","7.5%","10%"))
+
+ggsave(a, file="../../../kentucky/images/kycers.png",
+       width=6, height=5, units="in") 
+ 
