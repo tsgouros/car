@@ -106,7 +106,8 @@ doesMemberBecomeDisabled <- function(age, sex, service, status,
 
 ## The assumed salary increment, from the table of merit increases in
 ## each valuation report.
-projectSalaryDelta <- function(year, age, salary, service=1, tier="1") {
+projectSalaryDelta <- function(year, age, salary, service=1, tier="1",
+                               mortClass="General", verbose=FALSE) {
 
     if (age < 25) {
         out <- 1.075;

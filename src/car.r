@@ -244,8 +244,8 @@ source("mortality.r")
 ## The assumed salary increment, from the table of merit increases in
 ## each valuation report.  Tier refers to any kind of subdivision
 ## among the members.
-projectSalaryDelta <- function(year, age, salary, service=1, tier="1",
-                               verbose=FALSE) {
+projectSalaryDelta <- function(year, age, salary, service=1, tier="1", 
+                               mortClass="General", verbose=FALSE) {
     cat("Running default projectSalaryDelta.\n");
 
     if (age < 25) {
@@ -399,7 +399,9 @@ simulateCareerBackward <- function(year, age, service, salary,
                                                        age - (year - iyear),
                                                        salary,
                                                        service=service,
-                                                       tier=tier));
+                                                       tier=tier,
+                                                       mortClass=mortClass,
+                                                       verbose=verbose));
             statuses <- c(statuses, "active");
             years <- c(years, iyear);
             fromData <- c(fromData, FALSE);
@@ -1107,7 +1109,6 @@ buildMasterCashFlow <- function(memberTbl, members, verbose=FALSE) {
     retireYears <- unique(memberTbl$retireYear)
     retireYears <- retireYears[order(retireYears, na.last=NA)];
 
-    print(retireYears);
     if (length(retireYears) == 0) stop(" Nobody retired!\n");
 
     nYears <- endYear - startYear + 1;
