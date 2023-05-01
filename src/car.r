@@ -267,17 +267,41 @@ projectSalaryDelta <- function(year, age, salary, service=1, tier="1",
     return(out);
 }
 
+projectStartingPension <- function(year, birthYear, retireYear, salary, 
+                                   tier="1", mortClass="General",
+                                   verbose=FALSE) {
+    cat("Running default projectPension.\n");
+
+    if (verbose)
+        cat("  as of year", year, 
+            "\n  projecting pension for member born in", year,
+            "\n  and retiring in", retireYear,
+            "\n  tier:", tier, "mortClass:", mortClass);
+
+    startingPension <- max(salary) * 0.55;
+
+    if (verbose) cat("\n  result=", startingPension, "\n");
+    
+    return(startingPension);
+}
 
 projectPension <- function(salaryHistory, tier="1", mortClass="General",
                            verbose=FALSE) {
     cat("Running default projectPension.\n");
 
-    startingPension <- max(salaryHistory$salary) * 0.55;
-    cola <- 1.02;
-
     ## If this person never retired, send them away without a pension.
     if (!("retired" %in% salaryHistory$status))
         return(salaryHistory %>% mutate(pension = 0));
+
+    startingPension <-
+        projectStartingPension(
+            year=min(salaryHistory$year[salaryHistory$status=="retired"]),
+            birthYear=min(salaryHistory$year) - min(salaryHistory$age),
+            retireYear=min(salaryHistory$year[salaryHistory$status=="retired"]),
+            salary=salaryHistory$salary,
+            tier=tier, mortClass=mortClass, verbose=verbose);
+
+    cola <- 1.02;
 
     retireYear <- salaryHistory %>%
         filter(status=="retired") %>%
