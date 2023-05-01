@@ -270,7 +270,7 @@ projectSalaryDelta <- function(year, age, salary, service=1, tier="1",
 projectStartingPension <- function(year, birthYear, retireYear, salary, 
                                    tier="1", mortClass="General",
                                    verbose=FALSE) {
-    cat("Running default projectPension.\n");
+    cat("Running default projectStartingPension.\n");
 
     if (verbose)
         cat("  as of year", year, 
@@ -286,7 +286,7 @@ projectStartingPension <- function(year, birthYear, retireYear, salary,
 }
 
 projectPension <- function(salaryHistory, tier="1", mortClass="General",
-                           verbose=FALSE) {
+                           cola=1.02, verbose=FALSE) {
     cat("Running default projectPension.\n");
 
     ## If this person never retired, send them away without a pension.
@@ -300,8 +300,6 @@ projectPension <- function(salaryHistory, tier="1", mortClass="General",
             retireYear=min(salaryHistory$year[salaryHistory$status=="retired"]),
             salary=salaryHistory$salary,
             tier=tier, mortClass=mortClass, verbose=verbose);
-
-    cola <- 1.02;
 
     retireYear <- salaryHistory %>%
         filter(status=="retired") %>%
@@ -682,7 +680,7 @@ member <- function(age=0, service=0, salary=0,
                    currentYear=2018, birthYear=0,
                    hireYear=0, sepYear=0, retireYear=0,
                    sex="M", mortClass="General", tier="1",
-                   status="active", note="", verbose=FALSE) {
+                   status="active", note="", cola=1.02, verbose=FALSE) {
 
     if (verbose) cat("Creating a member with birthYear:", birthYear, ", age: ", age,
                      ", sex: ", sex, ", mortClass: ", mortClass,
@@ -744,7 +742,8 @@ member <- function(age=0, service=0, salary=0,
     ## If this member gets to retire, estimate pension.
     if ("retired" %in% salaryHistory$status) {
         salaryHistory <- projectPension(salaryHistory, tier=tier,
-                                        mortClass=mortClass, verbose=verbose);
+                                        mortClass=mortClass,
+                                        cola=cola, verbose=verbose);
         retireYear <- as.numeric(salaryHistory %>%
             filter(status=="retired") %>% summarize(retireYear=min(year)));
     } else {
@@ -1032,7 +1031,7 @@ genEmployees <- function (N=1, ageRange=c(20,25), servRange=c(0,5),
                           members=memberList(),
                           sex="M", tier="1", currentYear=2022,
                           class="General", status="active",
-                          verbose=FALSE) {
+                          cola=1.02, verbose=FALSE) {
 
     if (N < 1) return(members);
     
@@ -1060,7 +1059,7 @@ genEmployees <- function (N=1, ageRange=c(20,25), servRange=c(0,5),
     for (i in 1:N) {
         m <- member(age=ages[i], service=servs[i], salary=salaries[i],
                     sex=sex[i], tier=tier, mortClass=class, status=status,
-                    currentYear=currentYear, verbose=verbose);
+                    currentYear=currentYear, cola=cola, verbose=verbose);
 
         members[[m$id]] <- m;
     }
@@ -1106,6 +1105,8 @@ buildMasterCashFlow <- function(memberTbl, members, verbose=FALSE) {
 
     ## Get all the retireYears, in order.
     retireYears <- unique(memberTbl$retireYear)
+    if (length(retireYears) == 0) stop(" Nobody retired!\n");
+
     retireYears <- retireYears[order(retireYears, na.last=NA)];
     nYears <- endYear - startYear + 1;
 
