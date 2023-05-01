@@ -126,7 +126,7 @@ doesMemberRetire <- function(age, sex, service, status="active", tier="1",
     cat("Running default doesMemberRetire.\n");
 
     if (verbose) cat("doesMemberRetire: ");
-    validateInputs(age=age, sex=sex, service=service, status-status, tier=tier,
+    validateInputs(age=age, sex=sex, service=service, status=status, tier=tier,
                    mortClass=mortClass, verbose=verbose);
 
     ## If already retired or dead or something, get out.
@@ -166,7 +166,7 @@ doesMemberBecomeDisabled <- function(age, sex, service, status,
     cat("Running default doesMemberBecomeDisabled.\n");
 
     if (verbose) cat("doesMemberBeceomDisabled: ");
-    validateInputs(age=age, sex=sex, service=service, status-status, tier=tier,
+    validateInputs(age=age, sex=sex, service=service, status=status, tier=tier,
                    mortClass=mortClass, verbose=verbose);
 
     ## If already retired or dead or something, get out.
@@ -174,12 +174,10 @@ doesMemberBecomeDisabled <- function(age, sex, service, status,
                                          "deceased", "disabled/accident",
                                          "disabled/ordinary"))) return(status);
 
-    status <- doesMemberDisableOrdinary(age, sex, service,
-                                        currentStatus, tier=tier,
+    status <- doesMemberDisableOrdinary(age, sex, service, status, tier=tier,
                                         mortClass=mortClass, verbose=verbose);
 
-    status <- doesMemberDisableAccident(age, sex, service,
-                                        currentStatus, tier=tier,
+    status <- doesMemberDisableAccident(age, sex, service, status, tier=tier,
                                         mortClass=mortClass, verbose=verbose);
 
     return(status);
@@ -195,7 +193,7 @@ doesMemberDisableOrdinary <- function(age, sex, service, status,
     cat("Running default doesMemberDisableOrdinary.\n");
 
     if (verbose) cat("doesMemberDisableOrdinary: ");
-    validateInputs(age=age, sex=sex, service=service, status-status, tier=tier,
+    validateInputs(age=age, sex=sex, service=service, status=status, tier=tier,
                    mortClass=mortClass, verbose=verbose);
 
     return(status);
@@ -208,7 +206,7 @@ doesMemberDisableAccident <- function(age, sex, service, status,
     cat("Running default doesMemberDisableAccident.\n");
 
     if (verbose) cat("doesMemberDisableAccident: ");
-    validateInputs(age=age, sex=sex, service=service, status-status, tier=tier,
+    validateInputs(age=age, sex=sex, service=service, status=status, tier=tier,
                    mortClass=mortClass, verbose=verbose);
 
     return(status);
@@ -221,7 +219,7 @@ doesMemberHaveSurvivor <- function(age, sex, status, service, survivor,
     cat("Running default doesMemberHaveSurvivor\n");
 
     if (verbose) cat("doesMemberHaveSurvivor: ");
-    validateInputs(age=age, sex=sex, service=service, status-status, tier=tier,
+    validateInputs(age=age, sex=sex, service=service, status=status, tier=tier,
                    mortClass=mortClass, verbose=verbose);
     
     ## We only want to do this once. And we probably want to do better
@@ -304,7 +302,8 @@ projectPension <- function(salaryHistory, tier="1", mortClass="General",
 ## Accepts a salary history tibble and adds a column for the estimated
 ## premiums paid into the system for this employee for each year.
 ## (Combined employer and employee share.)
-projectPremiums <- function(salaryHistory, tier="A", verbose=FALSE) {
+projectPremiums <- function(salaryHistory, tier="A", mortClass="General",
+                            verbose=FALSE) {
     cat("Running default projectPremiums.\n");
 
     return(salaryHistory %>%
@@ -1202,7 +1201,7 @@ runModelOnce <- function(modelConstructionFunction,
 
 print.modelOutput <- function(mo, ...) {
     cat("model:\n");
-    synopsis(mo$model);
+    synopsize(mo$model);
 }
         
 
