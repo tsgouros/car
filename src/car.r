@@ -1105,9 +1105,11 @@ buildMasterCashFlow <- function(memberTbl, members, verbose=FALSE) {
 
     ## Get all the retireYears, in order.
     retireYears <- unique(memberTbl$retireYear)
+    retireYears <- retireYears[order(retireYears, na.last=NA)];
+
+    print(retireYears);
     if (length(retireYears) == 0) stop(" Nobody retired!\n");
 
-    retireYears <- retireYears[order(retireYears, na.last=NA)];
     nYears <- endYear - startYear + 1;
 
     if (verbose) cat("Starting at", startYear, "ending at", endYear,
