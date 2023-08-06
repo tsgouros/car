@@ -249,22 +249,26 @@ projectSalaryDelta <- function(year, age, salary, service=1, tier="1",
     cat("Running default projectSalaryDelta.\n");
 
     if (age < 25) {
-        out <- 1.075;
+        delta <- 1.075;
     } else if ((age >= 25) && (age < 30)) {
-        out <- 1.0735;
+        delta <- 1.0735;
     } else if ((age >= 30) && (age < 35)) {
-        out <- 1.0674;
+        delta <- 1.0674;
     } else if ((age >= 35) && (age < 40)) {
-        out <- 1.0556;
+        delta <- 1.0556;
     } else if ((age >= 40) && (age < 45)) {
-        out <- 1.0446;
+        delta <- 1.0446;
     } else if ((age >= 45) && (age < 50)) {
-        out <- 1.0374;
+        delta <- 1.0374;
     } else if (age >= 50) {
-        out <- 1.035;
+        delta <- 1.035;
     }
 
-    return(out);
+    if (verbose) cat("  year:", year, "age:", age, "service:", service,
+                     "tier:", tier, "mortClass:", mortClass,
+                     "\n  delta:", delta, "\n");
+    
+    return(delta);
 }
 
 projectStartingPension <- function(year, birthYear, retireYear, salary, 
