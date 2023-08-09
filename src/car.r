@@ -22,7 +22,8 @@ validateInputs <- function(age=20, ageRange=c(20,120),
                            mortClass="General",
                            mortClassRange=c("General","Safety","Teacher"),
                            tier="1", tierRange=c("1", "2", "3"),
-                           sysName="this", sysClass="",
+                           sysName="this",
+                           sysClass="", sysClassRange=c(""),
                            verbose=FALSE) {
 
 
@@ -42,16 +43,19 @@ validateInputs <- function(age=20, ageRange=c(20,120),
         return(paste0("Bad service: ", service));
 
     if (!(sex %in% sexRange))
-        return(paste0("Bad sex: ", sex))
+        return(paste0("Bad sex: ", sex));
     
     if (!(status %in% statusRange))
-        return(paste0("Bad status: ", status))
+        return(paste0("Bad status: ", status));
     
     if (!(mortClass %in% mortClassRange))
-        return(paste0("Bad mortClass: ", mortClass))
+        return(paste0("Bad mortClass: ", mortClass));
     
     if (!(tier %in% tierRange))
-        return(paste0("Bad tier: ", tier))
+        return(paste0("Bad tier: ", tier));
+
+    if (!(sysClass %in% sysClassRange))
+        return(paste0("Bad sysClass: ", sysClass));
 
     ## If we're here, all is good.
     return("");
@@ -78,6 +82,14 @@ checkStatus <- function(status,
 ## "doesMemberDie" function is over in mortality.r, largely due to the
 ## widespread use of the same published mortality tables.
 
+## Most of the arguments are self-explanatory. The sysName and sysClass
+## arguments may be useful for multi-employer systems, cf Arizona PSPRS,
+## where there are 200+ systems and they are classified by the county in the
+## assumption data.
+##
+## The 'service' variable should refer to *completed* years of service. That
+## is, it should begin at zero.
+##
 ## Provides an estimate of the probability of separation, given the age, class,
 ## and service years of the employee.
 doesMemberSeparate <- function(age, sex, service, status="active", tier="1",
@@ -97,7 +109,7 @@ doesMemberSeparate <- function(age, sex, service, status="active", tier="1",
                0.011, 0.007, 0.007, 0.007, 0.006,
                0.005, 0.005, 0.004, 0.004, 0.004);
 
-    service <- min(service, 20);
+    service <- min(service + 1, 20);
     if (runif(1) < rates[service]) status <- "separated";
 
     return(status);
@@ -120,12 +132,7 @@ doesMemberRetire <- function(age, sex, service, status="active", tier="1",
                                          "deceased", "disabled/accident",
                                          "disabled/ordinary"))) return(status);
 
-    ## The service years on input refer to years that have begun, but
-    ## not necessarily completed.  We want completed years.  This is
-    ## related to the model's approximation that events happen on the
-    ## transition from one year to the next, as opposed to the real
-    ## world, where events happen whenever they feel like it.
-    completedYears <- service - 1;
+    completedYears <- service;
 
     if ((age >= 62) && (completedYears >= 15)) {
         if ( ((age == 62) && (runif(1) > 0.4)) ||
@@ -394,7 +401,7 @@ simulateCareerBackward <- function(year, age, service, salary,
     years <- c(year);
 
     ## March backward to the year of initial hire.
-    if (service > 1) {
+    if (service > 0) {
         for (iyear in seq(from=year - 1, to=year - service + 1)) {
             ## cat("calculating for", iyear, "\n");
             ages <- c(ages, age - (year - iyear));
@@ -540,10 +547,7 @@ simulateCareerForward <- function(year, age, service, salary,
         if ((currentStatus == "deceased") &&
             (survivor$status != "retired/survivor")) break;
 
-        ## Add a service year if still active.  Note that the ending
-        ## total of service years will be one year too large.  This is
-        ## because we're dealing with integer years and the
-        ## transitions happen *during* a year.
+        ## Add a service year if still active.
         if (currentStatus == "active") currentService <- currentService + 1;
 
         ## If we're carrying a survivor along, age him or her one year.
