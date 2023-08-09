@@ -15,6 +15,7 @@
 ## assumptions. You get N samples for each age.
 ##
 validateDoesMemberSeparate <- function(N, tier="A", mortClass="General",
+                                       sysName="this", sysClass="",
                                        verbose=FALSE) {
 
     out <- tibble(age=1:65, service=age-20, Nsep=0, Ntot=0);
@@ -23,7 +24,9 @@ validateDoesMemberSeparate <- function(N, tier="A", mortClass="General",
         for (i in 1:N) {
             newStatus <- doesMemberSeparate(age, sex="M", service=age-20,
                                             status="active", tier=tier,
-                                            mortClass=mortClass, verbose=verbose)
+                                            mortClass=mortClass,
+                                            sysName=sysName, sysClass=sysClass,
+                                            verbose=verbose)
 
             out[age, "Ntot"] <- out[age, "Ntot"] + 1;
             
@@ -38,8 +41,10 @@ validateDoesMemberSeparate <- function(N, tier="A", mortClass="General",
 ## These are also suitable for A and B versions, i.e. not just the annual
 ## probabilities, but also the probability of anyone becoming disabled over
 ## the course of a career. That might make a better plausibility test.
-validateDoesMemberBecomeDisabledA <- function(N, sex="M", status="active", tier="A",
-                                      mortClass="General", verbose=FALSE) {
+validateDoesMemberBecomeDisabledA <- function(N, sex="M", status="active",
+                                              tier="A", mortClass="General",
+                                              sysName="this", sysClass="",
+                                              verbose=FALSE) {
   
     out <- tibble(age=c(), service=c(), oldStatus=c(), newStatus=c())
     for (age in 20:69) {
@@ -51,7 +56,9 @@ validateDoesMemberBecomeDisabledA <- function(N, sex="M", status="active", tier=
         ## verbose for debugging in that case.
         data$newStatus <- apply(data, 1, function(x) {
             doesMemberBecomeDisabled(x["age"], sex, 1, status=status,
-                                     tier=tier, mortClass=mortClass, verbose=verbose)
+                                     tier=tier, mortClass=mortClass,
+                                     sysName=sysName, sysClass=sysClass,
+                                     verbose=verbose)
         })
 
         ## This is here because if we include it in the original definition of
@@ -74,15 +81,19 @@ validateDoesMemberBecomeDisabledA <- function(N, sex="M", status="active", tier=
     return(out);
 }
 
-validateDoesMemberDisableAccident <- function(N, sex, mortClass="General",
-                                              tier="A", verbose=FALSE) {
+validateDoesMemberDisableAccident <- function(N, sex,
+                                              tier="A", mortClass="General",
+                                              sysName="this", sysClass="",
+                                              verbose=FALSE) {
     out <- tibble(age=1:65, Nacc=0, Ntot=0);
 
     for (age in 20:65) {
         for (i in 1:N) {
-            newStatus <- doesMemberDisableAccident(age, sex, 5, "active",
-                                                   mortClass=mortClass, tier=tier,
-                                                   verbose=verbose)
+            newStatus <-
+                doesMemberDisableAccident(age, sex, 5, "active",
+                                          mortClass=mortClass, tier=tier,
+                                          sysName=sysName, sysClass=sysClass,
+                                          verbose=verbose)
 
             out[age, "Ntot"] <- out[age, "Ntot"] + 1;
             
@@ -94,15 +105,19 @@ validateDoesMemberDisableAccident <- function(N, sex, mortClass="General",
     return(out %>% filter(age>=20) %>% mutate(prob=Nacc/ifelse(Ntot==0,1,Ntot)));
 }
 
-validateDoesMemberDisableOrdinary <- function(N, sex, mortClass="General",
-                                              tier="A", verbose=FALSE) {
+validateDoesMemberDisableOrdinary <- function(N, sex,
+                                              tier="A", mortClass="General",
+                                              sysName="this", sysClass="",
+                                              verbose=FALSE) {
     out <- tibble(age=1:65, Nord=0, Ntot=0);
 
     for (age in 20:65) {
         for (i in 1:N) {
-            newStatus <- doesMemberDisableOrdinary(age, sex, 5, "active",
-                                                   mortClass=mortClass, tier=tier,
-                                                   verbose=verbose)
+            newStatus <-
+                doesMemberDisableOrdinary(age, sex, 5, "active",
+                                          mortClass=mortClass, tier=tier,
+                                          sysName=sysName, sysClass=sysClass,
+                                          verbose=verbose)
 
             out[age, "Ntot"] <- out[age, "Ntot"] + 1;
             
@@ -122,7 +137,9 @@ validateDoesMemberDie <- function(N, sex, mortClass="General",
 ## adjYear and adjRetire to adjust the year and retirement year of the
 ## two time series.
 validateProjectPension <- function(status="active", adjYear=0, adjRetire=0,
-                                   tier="A", verbose=FALSE) {
+                                   mortClass="General", tier="A",
+                                   sysName="this", sysClass="",
+                                   verbose=FALSE) {
 
     if (status == "active") {
         if (verbose) cat("active -> retired..adjYear:", adjYear,
@@ -150,7 +167,9 @@ validateProjectPension <- function(status="active", adjYear=0, adjRetire=0,
         return(NA);
     }
 
-    salaryHistory <- projectPension(salaryHistory, tier=tier, verbose=verbose) %>%
+    salaryHistory <- projectPension(salaryHistory, tier=tier, mortClass=mortClass,
+                                    sysName=sysName, sysClass=sysClass,
+                                    verbose=verbose) %>%
         mutate(cola=ifelse(lag(pension)==0,
                            0,
                            (pension - lag(pension))/lag(pension)));
@@ -164,7 +183,9 @@ displayPensionValidation <- function(salaryHistory) {}
 validateProjectPremiums <- function() {}
 
 validateProjectSalaryDelta <- function(startYear=1990, endYear=2030,
-                                       startAge=25, tier="A", verbose=FALSE) {
+                                       startAge=25, tier="A", mortClass="General",
+                                       sysName=sysName, sysClass=sysClass,
+                                       verbose=FALSE) {
     out <- tibble(year=startYear:endYear) %>%
         mutate(age=startAge + year - startYear,
                service=1 + year - startYear);
@@ -175,7 +196,11 @@ validateProjectSalaryDelta <- function(startYear=1990, endYear=2030,
                                                                out$age[i - 1],
                                                                salary[i - 1],
                                                                out$service[i - 1],
-                                                               tier=tier));
+                                                               tier=tier,
+                                                               mortClass=mortClass,
+                                                               sysName=sysName,
+                                                               sysClass=sysClass,
+                                                               verbose=verbose));
     }
     out$salary <- salary;
     out <- out %>% mutate(delta=(salary-lag(salary))/lag(salary));
@@ -188,8 +213,10 @@ validateProjectSalaryDelta <- function(startYear=1990, endYear=2030,
 ## ranges. Note that we are validating not only the probability of choosing to
 ## retire, but also the function's evaluation of eligibility. So there should
 ## be a lot of zeros.
-validateDoesMemberRetireA <- function(N, sex="M", status="active", tier="A",
-                                      mortClass="General", verbose=FALSE) {
+validateDoesMemberRetireA <- function(N, sex="M", status="active",
+                                      tier="A", mortClass="General",
+                                      sysName="this", sysClass="",
+                                      verbose=FALSE) {
   
     out <- tibble(age=1:80,
                   R00t05=0, N00t05=0,
@@ -211,7 +238,9 @@ validateDoesMemberRetireA <- function(N, sex="M", status="active", tier="A",
         ## verbose for debugging in that case.
         data$newStatus <- apply(data, 1, function(x) {
             doesMemberRetire(x["age"], sex, x["service"], status=status,
-                             tier=tier, mortClass=mortClass, verbose=verbose)
+                             tier=tier, mortClass=mortClass,
+                             sysName=sysName, sysClass=sysClass,
+                             verbose=verbose)
         })
 
         ## This is here because if we include it in the original definition of
@@ -262,8 +291,10 @@ displayRetirementValidation <- function(valOutput) {
 ## retire, and returns some ratios about that.
 ##
 ## Try: validateDoesMemberRetireB(1000, tier="B") %>% ggplot()  + geom_point(aes(x=age,y=retirements))
-validateDoesMemberRetireB <- function(N, sex="M", status="active", tier="A",
-                                      mortClass="General", verbose=FALSE) {
+validateDoesMemberRetireB <- function(N, sex="M", status="active",
+                                      tier="A", mortClass="General",
+                                      sysName="this", sysClass="",
+                                      verbose=FALSE) {
 
     out <- tibble(age=40:80, retirements=0);
     
@@ -284,6 +315,7 @@ validateDoesMemberRetireB <- function(N, sex="M", status="active", tier="A",
 
             curStatus <- doesMemberRetire(age, sex, service, status=curStatus,
                                           tier=tier, mortClass=mortClass,
+                                          sysName=sysName, sysClass=sysClass,
                                           verbose=verbose);
             if (verbose) cat(" Member age:", age, "service:", service,
                              "status:", curStatus, "\n");
@@ -297,8 +329,10 @@ validateDoesMemberRetireB <- function(N, sex="M", status="active", tier="A",
     return(out);
 }
 
-validateDoesMemberBecomeDisabledB <- function(N, sex="M", status="active", tier="A",
-                                              mortClass="General", verbose=FALSE) {
+validateDoesMemberBecomeDisabledB <- function(N, sex="M", status="active",
+                                              tier="A", mortClass="General",
+                                              sysName="this", sysClass="",
+                                              verbose=FALSE) {
 
     out <- tibble(age=20:70, disabled=0);
     
@@ -315,15 +349,17 @@ validateDoesMemberBecomeDisabledB <- function(N, sex="M", status="active", tier=
         while((curStatus != "disabled/ordinary") &&
               (curStatus != "disabled/accident") && (age <= 70)) {
             ## Apparently not this year, advance age and service.
-            age <- age + 1;
-            service <- service + 1;
+                  age <- age + 1;
+                  service <- service + 1;
 
-            curStatus <- doesMemberBecomeDisabled(age, sex, service, status=curStatus,
-                                                  tier=tier, mortClass=mortClass,
-                                                  verbose=verbose);
-            if (verbose) cat(" Member age:", age, "service:", service,
-                             "status:", curStatus, "\n");
-        }
+                  curStatus <-
+                      doesMemberBecomeDisabled(age, sex, service, status=curStatus,
+                                               tier=tier, mortClass=mortClass,
+                                               sysName=sysName, sysClass=sysClass,
+                                               verbose=verbose);
+                  if (verbose) cat(" Member age:", age, "service:", service,
+                                   "status:", curStatus, "\n");
+              }
 
         if ((curStatus == "disabled/ordinary") || (curStatus == "disabled/accident")) {
             out[age - 19, "disabled"] <- out[age - 19, "disabled"] + 1;
