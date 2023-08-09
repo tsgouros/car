@@ -5,12 +5,13 @@
 ## lists.
 ##
 ## Pull in the CAR calculation apparatus.
-source("car.r")
+source("../../src/car.r", chdir=TRUE);
 
 ## System-specific, from the ACC 2020 val report.
 
-doesMemberSeparate <- function(age, service, status, tier="A",
-                               mortClass="General", verbose=FALSE) {
+doesMemberSeparate <- function(age, sex, service, status, tier="A",
+                               mortClass="General", sysName="this", sysClass="",
+                               verbose=FALSE) {
     ## If this is not currently an active employee, get out.
     if (status != "active") return(status);
 
@@ -54,8 +55,9 @@ doesMemberSeparate <- function(age, service, status, tier="A",
 
 
 
-doesMemberRetire <- function(age, service, status, tier="A",
-                             mortClass="General", verbose=FALSE) {
+doesMemberRetire <- function(age, sex, service, status, tier="A",
+                             mortClass="General", sysName="this", sysClass="",
+                             verbose=FALSE) {
     ## If already retired, disabled, or dead, get out.
     if (status %in% c("retired", "retired/survivor", "deceased", "disabled/accident",
                       "disabled/ordinary")) return(status);
@@ -125,6 +127,7 @@ doesMemberRetire <- function(age, service, status, tier="A",
 
 doesMemberDisableAccident <- function(age, sex, service, status,
                                       mortClass="General", tier="A",
+                                      sysName="this", sysClass="",
                                       verbose=FALSE) {
     ## If already retired, disabled, or dead, get out.
     if (status %in% c("retired", "retired/survivor", "deceased",
@@ -168,13 +171,15 @@ doesMemberDisableAccident <- function(age, sex, service, status,
 ## imply actually retired in the ACC system. See above.
 doesMemberDisableOrdinary <- function(age, sex, service, status,
                                       mortClass="General", tier="A",
+                                      sysName="this", sysClass="",
                                       verbose=FALSE) {
     return(status);
 }
 
 
 projectSalaryDelta <- function(year, age, salary, service=1, tier="A",
-                               mortClass="General", verbose=verbose) {
+                               mortClass="General", sysName="this", sysClass="",
+                               verbose=verbose) {
 
     ## Appendix table I
     if (service < 3) delta <- 1.065
@@ -187,8 +192,9 @@ projectSalaryDelta <- function(year, age, salary, service=1, tier="A",
 }
 
 
-doesMemberHaveSurvivor <- function(age, sex, status, survivor,
+doesMemberHaveSurvivor <- function(age, sex, status, service, survivor,
                                    tier=tier, mortClass=mortClass,
+                                   sysName="this", sysClass="",
                                    verbose=verbose) {
 
     if (verbose) cat("Member: age:", age, "sex:", sex, "status:", status, "\n")
@@ -219,6 +225,7 @@ doesMemberHaveSurvivor <- function(age, sex, status, survivor,
 
 ## ACC val report, page 34.
 projectBasePension <- function(salaryHistory, mortClass="General", tier="A",
+                               sysName="this", sysClass="",
                                verbose=FALSE) {    
     
     ## Find first entry that is *not* active or separated. (Or d/a for ACC.)
@@ -278,7 +285,8 @@ projectBasePension <- function(salaryHistory, mortClass="General", tier="A",
 ## Apply the base pension to the first retirement year, then roll it
 ## forward according to the COLA for that tier and year.
 projectPensionPayments <- function(salaryHistory, basePension, tier="A",
-                                   mortClass=mortClass, verbose=FALSE) {
+                                   mortClass=mortClass, sysName="this",
+                                   sysClass="", verbose=FALSE) {
 
     retireYear <- salaryHistory %>%
         filter(status %in% c("retired", "disabled/ordinary")) %>%
@@ -300,7 +308,7 @@ projectPensionPayments <- function(salaryHistory, basePension, tier="A",
     
 
 projectPension <- function(salaryHistory, tier="A", mortClass="General",
-                           verbose=FALSE) {
+                           cola=1.0, sysName="this", sysClass="", verbose=FALSE) {
 
     basePension <- projectBasePension(salaryHistory, tier=tier,
                                       mortClass=mortClass, verbose=verbose);
@@ -318,7 +326,7 @@ projectPension <- function(salaryHistory, tier="A", mortClass="General",
 ## (Combined employer and employee share, do not include amortization
 ## payments.)
 projectPremiums <- function(salaryHistory, tier="A", mortClass="General",
-                            verbose=FALSE) {
+                            sysName="this", sysClass="", verbose=FALSE) {
 
     premiumPerPayroll <- .145;
 
@@ -336,7 +344,7 @@ projectPremiums <- function(salaryHistory, tier="A", mortClass="General",
 ## actual population and then run the model.
 accModel <- function(verbose=FALSE) {
 
-    xlfile <- "../../acc/data/ACC-scratch.xlsx";
+    xlfile <- "../../../data/ACC-scratch.xlsx";
     
     if (verbose) cat("building model", date(), "from", xlfile, "\n");
 
@@ -350,7 +358,7 @@ accModel <- function(verbose=FALSE) {
                                  servRange=c(accDemo$minService[i], accDemo$maxService[i]),
                                  avgSalary=accDemo$avgSalary[i],
                                  sex=list(M=accDemo$M[i], F=accDemo$F[i]),
-                                 class=accDemo$mortClass[i],
+                                 mortClass=accDemo$mortClass[i],
                                  tier=accDemo$tier[i],
                                  currentYear=2020,
                                  members=accModel,
@@ -362,6 +370,6 @@ accModel <- function(verbose=FALSE) {
     return(accModel);
 }
 
-accModelOutputLg <- runModel(accModel, N=75, verbose=TRUE, reallyVerbose=FALSE,
+accModelOutputLg <- runModel(accModel, N=1, verbose=TRUE, reallyVerbose=FALSE,
                            audit=TRUE);
 

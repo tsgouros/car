@@ -29,7 +29,8 @@ validateInputsKY <- function(age=20, ageRange=c(20,120),
 
 ## System-specific, from the KY CERS 2022 val report.
 doesMemberSeparate <- function(age, sex, service, status="active", tier="1",
-                               mortClass="General", verbose=FALSE) {
+                               mortClass="General", sysName="this", sysClass="",
+                               verbose=FALSE) {
 
     if (verbose) cat("doesMemberSeparate: ");
     validateInputsKY(age=age, sex=sex, service=service, status=status, tier=tier,
@@ -65,7 +66,8 @@ doesMemberSeparate <- function(age, sex, service, status="active", tier="1",
 
 
 doesMemberRetire <- function(age, sex, service, status="active", year=2022,
-                             tier="A", mortClass="General", verbose=FALSE) {
+                             tier="A", mortClass="General", sysName="this",
+                             sysClass="",verbose=FALSE) {
 
     if (verbose) cat("doesMemberRetire: ");
     validateInputs(age=age, sex=sex, service=service, status=status, tier=tier,
@@ -210,6 +212,7 @@ doesMemberRetire <- function(age, sex, service, status="active", year=2022,
 
 doesMemberBecomeDisabled <- function(age, sex, service, status,
                                      mortClass="General", tier="A",
+                                     sysName="this", sysClass="",
                                      verbose=FALSE) {
 
     if (verbose) cat("doesMemberBecomeDisabled: ");
@@ -252,7 +255,8 @@ doesMemberBecomeDisabled <- function(age, sex, service, status,
 }
 
 projectSalaryDelta <- function(year, age, salary, service=1, tier="A",
-                               mortClass="General", verbose=verbose) {
+                               mortClass="General", sysName="this", sysClass="",
+                               verbose=verbose) {
 
     ## val report page 60
     generalDelta <- c(1.1030, 1.0730, 1.0630, 1.0480, 1.0455, 1.0455, 1.0430,
@@ -272,7 +276,8 @@ projectSalaryDelta <- function(year, age, salary, service=1, tier="A",
 }
 
 doesMemberHaveSurvivor <- function(age, sex, status, service, survivor,
-                                   tier=tier, mortClass=mortClass,
+                                   tier="A", mortClass="General",
+                                   sysName="this", sysClass="",
                                    verbose=verbose) {
 
     if (verbose) cat("doesMemberHaveSurvivor: ");
@@ -312,6 +317,7 @@ doesMemberHaveSurvivor <- function(age, sex, status, service, survivor,
 projectBasePension <- function(salaryHistory, retirementType, retireYear,
                                retireAge, retireService, retireStatus,
                                mortClass="General", tier="A",
+                               sysName="this", sysClass="",
                                verbose=FALSE) {    
 
     if (verbose) cat("projectBasePension: ");
@@ -488,7 +494,8 @@ projectBasePension <- function(salaryHistory, retirementType, retireYear,
 projectPensionPayments <- function(salaryHistory, basePension, retirementType,
                                    retireYear, retireAge, retireService,
                                    retireStatus, tier="A",
-                                   mortClass=mortClass, verbose=FALSE) {
+                                   mortClass="General", sysName="this",
+                                   sysClass="", verbose=FALSE) {
 
     if (verbose) cat("projectPensionPayments: ");
     validateInputsKY(age=retireAge, service=retireService, status=retireStatus,
@@ -553,7 +560,7 @@ projectPensionPayments <- function(salaryHistory, basePension, retirementType,
     
 
 projectPension <- function(salaryHistory, tier="A", mortClass="General",
-                           verbose=FALSE) {
+                           cola=1.0, sysName="this", sysClass="", verbose=FALSE) {
 
     if (verbose) cat("projectPension: ");
     validateInputsKY(tier=tier, mortClass=mortClass, verbose=verbose);
@@ -629,7 +636,7 @@ projectPension <- function(salaryHistory, tier="A", mortClass="General",
 ## (Combined employer and employee share, do not include amortization
 ## payments.)
 projectPremiums <- function(salaryHistory, tier="A", mortClass="General",
-                            verbose=FALSE) {
+                            sysName="this", sysClass="", verbose=FALSE) {
 
     if (verbose) cat("Running projectPremiums from kycers.r, tier:", tier, "\n");
 
@@ -690,7 +697,7 @@ kyModel <- function(verbose=FALSE) {
                                             kyGeneral$maxService[i]),
                                 avgSalary=kyGeneral$avgSalary[i],
                                 sex=list(M=0.45, F=0.55),
-                                class="General",
+                                mortClass="General",
                                 tier=tier,
                                 currentYear=2022,
                                 members=kyModel,
@@ -716,7 +723,7 @@ kyModel <- function(verbose=FALSE) {
                                             kySafety$maxService[i]),
                                 avgSalary=kySafety$avgSalary[i],
                                 sex=list(M=0.5, F=0.5),
-                                class="Safety",
+                                mortClass="Safety",
                                 tier=tier,
                                 currentYear=2022,
                                 members=kyModel,
@@ -730,7 +737,7 @@ kyModel <- function(verbose=FALSE) {
     return(kyModel);
 }
 
-kyModelOutput <- runModel(kyModel, N=10, verbose=TRUE, reallyVerbose=FALSE,
+kyModelOutput <- runModel(kyModel, N=1, verbose=TRUE, reallyVerbose=FALSE,
                           audit=TRUE);
 
 

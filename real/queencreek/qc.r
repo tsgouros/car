@@ -1,5 +1,5 @@
 ## Pull in the CAR calculation apparatus.
-source("car.r")
+source("../../src/car.r", chdir=TRUE);
 
 ## System-specific information.
 ##
@@ -9,7 +9,8 @@ source("car.r")
 ## These functions (doIseparate and doIretire) give the probability of
 ## separation or retirement, given the age and service years of the
 ## employee.
-doesMemberSeparate <- function(age, service, status, tier="1",
+doesMemberSeparate <- function(age, sex, service, status, tier="1",
+                               mortClass="General", sysName="this", sysClass="",
                                verbose=FALSE) {
     ## If this is not currently an active employee, get out.
     if (status != "active") return(status);
@@ -25,7 +26,9 @@ doesMemberSeparate <- function(age, service, status, tier="1",
     return(status);
 }
 
-doesMemberRetire <- function(age, service, status, tier="1", verbose=FALSE) {
+doesMemberRetire <- function(age, sex, service, status, tier="1",
+                             mortClass="General", sysName="this", sysClass="",
+                             verbose=FALSE) {
     ## If already retired, get out.
     if ((status == "retired") || (status == "deceased")) return(status);
 
@@ -87,7 +90,7 @@ doesMemberRetire <- function(age, service, status, tier="1", verbose=FALSE) {
 
 doesMemberBecomeDisabled <- function(age, sex, service, status,
                                      mortClass="General", tier="1",
-                                     verbose=FALSE) {
+                                     sysName="this", sysClass="", verbose=FALSE) {
     ## If already retired or disabled, don't change anything and get out.
     if ((status == "retired") || (status == "deceased") ||
         (status == "disabled") ) return(status);
@@ -107,7 +110,8 @@ doesMemberBecomeDisabled <- function(age, sex, service, status,
 ## The assumed salary increment, from the table of merit increases in
 ## each valuation report.
 projectSalaryDelta <- function(year, age, salary, service=1, tier="1",
-                               mortClass="General", verbose=FALSE) {
+                               mortClass="General", sysName="this", sysClass="",
+                               verbose=FALSE) {
 
     if (age < 25) {
         out <- 1.075;
@@ -135,7 +139,9 @@ projectSalaryDelta <- function(year, age, salary, service=1, tier="1",
     return(out);
 }
 
-projectPension <- function(salaryHistory, tier="1", verbose=FALSE) {
+projectPension <- function(salaryHistory, tier="1", mortClass="General",
+                           cola=1.0175, sysName="this", sysClass="",
+                           verbose=FALSE) {
 
     service <- sum(salaryHistory$salary > 0);
 
@@ -254,7 +260,8 @@ qcPremiumRate <- tibble(year = c(2008,2009,
                                       0.208,0.216,0.145,0.126,0.129,
                                       0.118,0.120));
 
-projectPremiums <- function(salaryHistory, verbose=FALSE) {    
+projectPremiums <- function(salaryHistory, tier="A", mortClass="General",
+                            sysName="this", sysClass="", verbose=FALSE) {    
     return(salaryHistory %>%
            left_join(qcPremiumRate,by="year") %>%
            mutate(premiumRate=ifelse(is.na(premiumRate),.2265,premiumRate),

@@ -1,10 +1,10 @@
-library(readxl)
-library(dplyr)
-source("car.r")
+## Pull in the CAR calculation apparatus.
+source("../../src/car.r", chdir=TRUE);
 source("qc.r")
 
-
-tmp <- read_excel("../../../../21/pension/pawg/Queen_Creek_Fire_2.xlsx", sheet="Queen_Creek_Fire");
+library(readxl)
+tmp <- read_excel("../../../../../21/pension/pawg/Queen_Creek_Fire_2.xlsx",
+                  sheet="Queen_Creek_Fire");
 qcMemberData <- tmp %>%
     mutate(year=as.numeric(substr(ppe_dt, 1, 4)),
            birth=as.numeric(substr(dob, 1, 4)),

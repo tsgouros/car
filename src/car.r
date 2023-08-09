@@ -12,27 +12,6 @@ library(tidyverse)
 source("newton.r")
 source("mortality.r")
 
-## Every year, premiums are collected for everyone.  Imagine a big
-## matrix of premium payments, where each row represents a year of
-## premiums (P) and pension payments (R), and each column is all the
-## actives who will retire in a class.
-##
-## year
-##   1   P11   P12   P13   P14   P15 ...
-##   2   R21   P22   P23   P24   P25 ...
-##   3   R31   R32   P33   P34   P35 ...
-##   4   R41   R42   R43   P44   P45 ...
-##   5   R51   R52   R53   R54   P55 ...
-##   6     .     .     .     .    .  ...
-##   7     .     .     .     .    .  ...
-##   8     .     .     .     .    .  ...
-##
-## The "1" class (first column) retires at the end of year 1, so
-## receives its pension benefits in year 2.  The 2 class retires at
-## the end of year 2, and so on.  We refer to this below as the master
-## cash flow matrix.
-##
-##
 validateInputs <- function(age=20, ageRange=c(20,120),
                            sex="M", sexRange=c("M","F"),
                            service=0, serviceRange=c(0,100),
@@ -43,12 +22,14 @@ validateInputs <- function(age=20, ageRange=c(20,120),
                            mortClass="General",
                            mortClassRange=c("General","Safety","Teacher"),
                            tier="1", tierRange=c("1", "2", "3"),
+                           sysName="this", sysClass="",
                            verbose=FALSE) {
 
 
     if (verbose) cat("age:", age, ", sex:", sex, ", status:", status,
                      ", service:", service, ", mortClass:", mortClass,
-                     ", tier:", tier, "\n", sep="");
+                     ", tier:", tier, ", sys:", sysName, "(", sysClass, ")\n",
+                     sep="");
     
     if (!is.numeric(age))
         return(paste0("Age is not numeric: ", age))
@@ -83,6 +64,7 @@ checkStatus <- function(status,
     return(status %in% acceptable);
 }
 
+
 ################### BEGIN SYSTEM SPECIFIC DEFINITIONS ####################
 
 ## Following is a set of functions that describe plan provisions and actuarial
@@ -99,11 +81,13 @@ checkStatus <- function(status,
 ## Provides an estimate of the probability of separation, given the age, class,
 ## and service years of the employee.
 doesMemberSeparate <- function(age, sex, service, status="active", tier="1",
-                               mortClass="General", verbose=FALSE) {
+                               mortClass="General", sysName="this", sysClass="",
+                               verbose=FALSE) {
     cat("Running default doesMemberSeparate.\n");
     if (verbose) cat("doesMemberSeparate: ");
     validateInputs(age=age, sex=sex, service=service, status=status, tier=tier,
-                   mortClass=mortClass, verbose=verbose);
+                   mortClass=mortClass, sysName=sysName, sysClass=sysClass,
+                   verbose=verbose);
     
     ## If this is not currently an active employee, get out.
     if (!checkStatus(status, acceptable=c("active"))) return(status);
@@ -122,12 +106,14 @@ doesMemberSeparate <- function(age, sex, service, status="active", tier="1",
 ## Provides an estimate of the probability of retirement, given the age, class,
 ## and service years of the employee.
 doesMemberRetire <- function(age, sex, service, status="active", tier="1",
-                             mortClass="General", verbose=FALSE) {
+                             mortClass="General", sysName="this", sysClass="",
+                             verbose=FALSE) {
     cat("Running default doesMemberRetire.\n");
 
     if (verbose) cat("doesMemberRetire: ");
     validateInputs(age=age, sex=sex, service=service, status=status, tier=tier,
-                   mortClass=mortClass, verbose=verbose);
+                   mortClass=mortClass, sysName=sysName, sysClass=sysClass,
+                   verbose=verbose);
 
     ## If already retired or dead or something, get out.
     if (checkStatus(status, acceptable=c("retired", "retired/survivor",
@@ -160,14 +146,15 @@ doesMemberRetire <- function(age, sex, service, status="active", tier="1",
     return(status);
 }
 
-doesMemberBecomeDisabled <- function(age, sex, service, status,
-                                      mortClass="General", tier="1",
-                                      verbose=FALSE) {
+doesMemberBecomeDisabled <- function(age, sex, service, status, tier="1", 
+                                     mortClass="General", sysName="this",
+                                     sysClass="", verbose=FALSE) {
     cat("Running default doesMemberBecomeDisabled.\n");
 
     if (verbose) cat("doesMemberBeceomDisabled: ");
     validateInputs(age=age, sex=sex, service=service, status=status, tier=tier,
-                   mortClass=mortClass, verbose=verbose);
+                   mortClass=mortClass, sysName=sysName, sysClass=sysClass,
+                   verbose=verbose);
 
     ## If already retired or dead or something, get out.
     if (checkStatus(status, acceptable=c("retired", "retired/survivor",
@@ -175,10 +162,12 @@ doesMemberBecomeDisabled <- function(age, sex, service, status,
                                          "disabled/ordinary"))) return(status);
 
     status <- doesMemberDisableOrdinary(age, sex, service, status, tier=tier,
-                                        mortClass=mortClass, verbose=verbose);
+                                        mortClass=mortClass, sysName=sysName,
+                                        sysClass=sysClass, verbose=verbose);
 
     status <- doesMemberDisableAccident(age, sex, service, status, tier=tier,
-                                        mortClass=mortClass, verbose=verbose);
+                                        mortClass=mortClass, sysName=sysName,
+                                        sysClass=sysClass, verbose=verbose);
 
     return(status);
 }
@@ -187,40 +176,44 @@ doesMemberBecomeDisabled <- function(age, sex, service, status,
 ## disabled on the job ("accident").  The default versions are nops, so you can
 ## decide whether to specialize the accident, ordinary, or combined disability
 ## probability function.
-doesMemberDisableOrdinary <- function(age, sex, service, status,
-                                      mortClass="General", tier="1",
-                                      verbose=FALSE) {
+doesMemberDisableOrdinary <- function(age, sex, service, status, tier="1",
+                                      mortClass="General", sysName="this",
+                                      sysClass="", verbose=FALSE) {
     cat("Running default doesMemberDisableOrdinary.\n");
 
     if (verbose) cat("doesMemberDisableOrdinary: ");
     validateInputs(age=age, sex=sex, service=service, status=status, tier=tier,
-                   mortClass=mortClass, verbose=verbose);
+                   mortClass=mortClass, sysName=sysName, sysClass=sysClass,
+                   verbose=verbose);
 
     return(status);
 }
 
 ## See "Ordinary" above.
-doesMemberDisableAccident <- function(age, sex, service, status,
-                                      mortClass="General", tier="1",
-                                      verbose=FALSE) {
+doesMemberDisableAccident <- function(age, sex, service, status, tier="1",
+                                      mortClass="General", sysName="this",
+                                      sysClass="", verbose=FALSE) {
     cat("Running default doesMemberDisableAccident.\n");
 
     if (verbose) cat("doesMemberDisableAccident: ");
     validateInputs(age=age, sex=sex, service=service, status=status, tier=tier,
-                   mortClass=mortClass, verbose=verbose);
+                   mortClass=mortClass, sysName=sysName, sysClass=sysClass,
+                   verbose=verbose);
 
     return(status);
 }
 
 doesMemberHaveSurvivor <- function(age, sex, status, service, survivor,
-                                   tier=tier, mortClass=mortClass,
+                                   tier="1", mortClass="General",
+                                   sysName="this", sysClass="", 
                                    verbose=verbose) {
 
     cat("Running default doesMemberHaveSurvivor\n");
 
     if (verbose) cat("doesMemberHaveSurvivor: ");
     validateInputs(age=age, sex=sex, service=service, status=status, tier=tier,
-                   mortClass=mortClass, verbose=verbose);
+                   mortClass=mortClass, sysName=sysName, sysClass=sysClass,
+                   verbose=verbose);
     
     ## We only want to do this once. And we probably want to do better
     ## (less retro?) choices of sex and age in the specialized versions.
@@ -245,7 +238,8 @@ source("mortality.r")
 ## each valuation report.  Tier refers to any kind of subdivision
 ## among the members.
 projectSalaryDelta <- function(year, age, salary, service=1, tier="1", 
-                               mortClass="General", verbose=FALSE) {
+                               mortClass="General", sysName="this", sysClass="",
+                               verbose=FALSE) {
     cat("Running default projectSalaryDelta.\n");
 
     if (age < 25) {
@@ -273,6 +267,7 @@ projectSalaryDelta <- function(year, age, salary, service=1, tier="1",
 
 projectStartingPension <- function(year, birthYear, retireYear, salary, 
                                    tier="1", mortClass="General",
+                                   sysName="this", sysClass="",
                                    verbose=FALSE) {
     cat("Running default projectStartingPension.\n");
 
@@ -290,7 +285,8 @@ projectStartingPension <- function(year, birthYear, retireYear, salary,
 }
 
 projectPension <- function(salaryHistory, tier="1", mortClass="General",
-                           cola=1.02, verbose=FALSE) {
+                           cola=1.02, sysName="this", sysClass="",
+                           verbose=FALSE) {
     cat("Running default projectPension.\n");
 
     ## If this person never retired, send them away without a pension.
@@ -303,7 +299,8 @@ projectPension <- function(salaryHistory, tier="1", mortClass="General",
             birthYear=min(salaryHistory$year) - min(salaryHistory$age),
             retireYear=min(salaryHistory$year[salaryHistory$status=="retired"]),
             salary=salaryHistory$salary,
-            tier=tier, mortClass=mortClass, verbose=verbose);
+            tier=tier, mortClass=mortClass, sysName=sysName, sysClass=sysClass,
+            verbose=verbose);
 
     retireYear <- salaryHistory %>%
         filter(status=="retired") %>%
@@ -329,6 +326,7 @@ projectPension <- function(salaryHistory, tier="1", mortClass="General",
 ## premiums paid into the system for this employee for each year.
 ## (Combined employer and employee share.)
 projectPremiums <- function(salaryHistory, tier="A", mortClass="General",
+                            sysName="this", sysClass="",
                             verbose=FALSE) {
     cat("Running default projectPremiums.\n");
 
@@ -351,6 +349,7 @@ projectPremiums <- function(salaryHistory, tier="A", mortClass="General",
 projectCareer <- function(year=0, age=0, service=0, salary=0,
                           salaryHistory=NA, sex="M",
                           mortClass="General", tier="1",
+                          sysName="this", sysClass="",
                           verbose=FALSE) {
 
     ## Test if the salaryHistory data frame is empty.
@@ -359,13 +358,15 @@ projectCareer <- function(year=0, age=0, service=0, salary=0,
         ## If so we just have a single year to project from.
         career <- projectCareerFromOneYear(year, age, service, salary,
                                            sex=sex, mortClass=mortClass,
-                                           tier=tier, verbose=verbose);
+                                           tier=tier, sysName=sysName,
+                                           sysClass=sysClass, verbose=verbose);
     } else {
 
         ## We have a few years to project from.
         career <- projectCareerFromRecord(salaryHistory, sex=sex,
-                                          mortClass=mortClass,
-                                          tier=tier, verbose=verbose)
+                                          mortClass=mortClass, tier=tier,
+                                          sysName=sysName, sysClass=sysClass,
+                                          verbose=verbose)
     }
 
     return(career);
@@ -377,7 +378,8 @@ projectCareer <- function(year=0, age=0, service=0, salary=0,
 simulateCareerBackward <- function(year, age, service, salary,
                                    sex="M", status="active",
                                    mortClass="General",
-                                   tier="1", verbose=FALSE) {
+                                   tier="1", sysName="this", sysClass="",
+                                   verbose=FALSE) {
 
     if (verbose) cat("\nIn", year, "--simulating career backward for--\n",
                      "age:", age, "service:", service, "salary:", salary,
@@ -405,6 +407,8 @@ simulateCareerBackward <- function(year, age, service, salary,
                                                        service=service,
                                                        tier=tier,
                                                        mortClass=mortClass,
+                                                       sysName=sysName,
+                                                       sysClass=sysClass,
                                                        verbose=verbose));
             statuses <- c(statuses, "active");
             years <- c(years, iyear);
@@ -424,14 +428,15 @@ simulateCareerBackward <- function(year, age, service, salary,
                   age =     ages[ord],
                   service = services[ord],
                   salary =  salaries[ord],
-                  fromData    =  fromData[ord],
+                  fromData= fromData[ord],
                   status =  statuses[ord]));
 }
 
 simulateCareerForward <- function(year, age, service, salary,
                                   sex="M", status="active",
-                                  mortClass="General",
-                                  tier="1", verbose=FALSE) {
+                                  mortClass="General", tier="1",
+                                  sysName="this", sysClass="",
+                                  verbose=FALSE) {
 
     if (verbose) cat("\nIn", year, "--simulating career forward for--\n",
                      "age:", age, "service:", service, "salary:", salary,
@@ -478,15 +483,18 @@ simulateCareerForward <- function(year, age, service, salary,
         currentStatus <-
             doesMemberBecomeDisabled(testAge, sex, currentService,
                                      currentStatus, tier=tier,
-                                     mortClass=mortClass, verbose=verbose);
+                                     mortClass=mortClass, sysName=sysName,
+                                     sysClass=sysClass, verbose=verbose);
 
         currentStatus <-
             doesMemberSeparate(testAge, sex, currentService, currentStatus,
-                               tier=tier, mortClass=mortClass, verbose=verbose);
+                               tier=tier, mortClass=mortClass, sysName=sysName,
+                               sysClass=sysClass, verbose=verbose);
 
         currentStatus <-
             doesMemberRetire(testAge, sex, currentService, currentStatus,
-                             tier=tier, mortClass=mortClass, verbose=verbose);
+                             tier=tier, mortClass=mortClass, sysName=sysName,
+                             sysClass=sysClass, verbose=verbose);
 
         ## Check for a survivor? Note that we (might) create a survivor here,
         ## but they won't be relevant to the pension amount in the salary
@@ -496,6 +504,7 @@ simulateCareerForward <- function(year, age, service, salary,
                 doesMemberHaveSurvivor(testAge, sex, currentStatus, currentService,
                                        survivor,
                                        tier=tier, mortClass=mortClass,
+                                       sysName=sysName, sysClass=sysClass,
                                        verbose=verbose);
 
         ## Is there a survivor receiving benefits? Start accumulating his or
@@ -516,7 +525,10 @@ simulateCareerForward <- function(year, age, service, salary,
                                                             age-(year-iyear),
                                                             salary,
                                                             service=service,
-                                                            tier=tier),
+                                                            tier=tier,
+                                                            sysName=sysName,
+                                                            sysClass=sysClass,
+                                                            verbose=verbose),
                      0));
         ages <- c(ages, testAge);
         services <- c(services, currentService);
@@ -572,6 +584,7 @@ simulateCareerForward <- function(year, age, service, salary,
 ## age, service, and status columns.
 projectCareerFromRecord <- function(salaryHistory, sex="M",
                                     mortClass="General", tier="1",
+                                    sysName="this", sysClass="", 
                                     verbose=FALSE) {
 
     backward <- simulateCareerBackward(head(salaryHistory$year, 1),
@@ -580,8 +593,9 @@ projectCareerFromRecord <- function(salaryHistory, sex="M",
                                        head(salaryHistory$salary, 1),
                                        sex=sex,
                                        status=head(as.character(salaryHistory$status), 1),
-                                       mortClass=mortClass,
-                                       tier=tier, verbose=verbose);
+                                       mortClass=mortClass, tier=tier,
+                                       sysName=sysName, sysClass=sysClass,
+                                       verbose=verbose);
 
     forward <- simulateCareerForward(tail(salaryHistory$year, 1),
                                      tail(salaryHistory$age, 1),
@@ -589,8 +603,9 @@ projectCareerFromRecord <- function(salaryHistory, sex="M",
                                      tail(salaryHistory$salary, 1),
                                      sex=sex,
                                      status=tail(as.character(salaryHistory$status), 1),
-                                     mortClass=mortClass,
-                                     tier=tier, verbose=verbose);
+                                     mortClass=mortClass, tier=tier,
+                                     sysName=sysName, sysClass=sysClass,
+                                     verbose=verbose);
 
     totalNYears <- length(backward$year) + length(salaryHistory$year) +
         length(forward$year) -1;
@@ -635,16 +650,19 @@ projectCareerFromRecord <- function(salaryHistory, sex="M",
 ## like.  We assume that the status is 'active' for the given year.
 projectCareerFromOneYear <- function(year, age, service, salary, sex="M",
                                      mortClass="General", tier="1",
+                                     sysName="this", sysClass="", 
                                      verbose=FALSE) {
 
     backward <- simulateCareerBackward(year, age, service, salary,
                                        sex=sex, status="active",
                                        mortClass=mortClass, tier=tier,
+                                       sysName=sysName, sysClass=sysClass,
                                        verbose=verbose)
 
     forward <- simulateCareerForward(year, age, service, salary,
                                      sex=sex, status="active",
                                      mortClass=mortClass, tier=tier,
+                                     sysName=sysName, sysClass=sysClass,
                                      verbose=verbose)
 
     totalYears <- c(backward$year, forward$year);
@@ -686,7 +704,9 @@ member <- function(age=0, service=0, salary=0,
                    currentYear=2018, birthYear=0,
                    hireYear=0, sepYear=0, retireYear=0,
                    sex="M", mortClass="General", tier="1",
-                   status="active", note="", cola=1.02, verbose=FALSE) {
+                   status="active", note="", cola=1.02,
+                   sysName="this", sysClass="", 
+                   verbose=FALSE) {
 
     if (verbose) cat("Creating a member with birthYear:", birthYear, ", age: ", age,
                      ", sex: ", sex, ", mortClass: ", mortClass,
@@ -722,7 +742,8 @@ member <- function(age=0, service=0, salary=0,
         salaryHistory <- projectCareer(year=currentYear, age=age,
                                        service=service, salary=salary,
                                        sex=sex, mortClass=mortClass,
-                                       tier=tier, verbose=verbose);
+                                       tier=tier, sysName=sysName,
+                                       sysClass=sysClass, verbose=verbose);
     } else {
         ## If we're here, we already have some fraction of a member's
         ## salary history to work with.
@@ -738,17 +759,20 @@ member <- function(age=0, service=0, salary=0,
         salaryHistory <- projectCareer(salaryHistory=salaryHistory, age=age,
                                        service=service, sex=sex,
                                        mortClass=mortClass, tier=tier,
+                                       sysName=sysName, sysClass=sysClass,
                                        verbose=verbose);
     }
 
     ## Add the premiums paid into the system.
     salaryHistory <- projectPremiums(salaryHistory, tier=tier, mortClass=mortClass,
+                                     sysName=sysName, sysClass=sysClass,
                                      verbose=verbose);
 
     ## If this member gets to retire, estimate pension.
     if ("retired" %in% salaryHistory$status) {
         salaryHistory <- projectPension(salaryHistory, tier=tier,
                                         mortClass=mortClass,
+                                        sysName=sysName, sysClass=sysClass,
                                         cola=cola, verbose=verbose);
         retireYear <- as.numeric(salaryHistory %>%
             filter(status=="retired") %>% summarize(retireYear=min(year)));
@@ -785,6 +809,8 @@ member <- function(age=0, service=0, salary=0,
                 sex=sex,
                 mortClass=mortClass,
                 tier=tier,
+                sysName=sysName,
+                sysClass=sysClass,
                 car=car,
                 note=note,
                 salaryHistory=salaryHistory);
@@ -793,7 +819,7 @@ member <- function(age=0, service=0, salary=0,
     return(out);
 }
 
-#change this to format / print.
+
 format.member <- function(m, ...) {
     out <- paste0("birthYear: ", m$birthYear,
                   ", deathYear: ", max(m$salaryHistory$year),
@@ -802,7 +828,8 @@ format.member <- function(m, ...) {
                   ", sepYear: ", m$sepYear,
                   ", retireYear: ", m$retireYear,
                   "\n     mortality class: ", m$mortClass,
-                  ", tier: ", m$tier);
+                  ", tier: ", m$tier,
+                  ", sys: ", m$sysName, "(", m$sysClass, ")");
 
     ## The last row of the salary history is always zero, and not so
     ## interesting.
@@ -1036,7 +1063,8 @@ genEmployees <- function (N=1, ageRange=c(20,25), servRange=c(0,5),
                           avgSalary=75000, sdSalary=5000,
                           members=memberList(),
                           sex="M", tier="1", currentYear=2022,
-                          class="General", status="active",
+                          mortClass="General", status="active",
+                          sysName="this", sysClass="", 
                           cola=1.02, verbose=FALSE) {
 
     if (N < 1) return(members);
@@ -1044,7 +1072,7 @@ genEmployees <- function (N=1, ageRange=c(20,25), servRange=c(0,5),
     if (verbose) cat("Creating", N, "members in", currentYear, "\n",
                      "avgSalary:", avgSalary, "age range:", ageRange[1], "-",
                      ageRange[2], "service:", servRange[1], "-", servRange[2],
-                     "tier:", tier, "class:", class, "status:", status, "\n");
+                     "tier:", tier, "class:", mortClass, "status:", status, "\n");
     
     ages <- round(runif(N)*(ageRange[2] - ageRange[1])) + ageRange[1];
     ## Set a lower bound here so we don't have 26 year olds with 9
@@ -1064,7 +1092,8 @@ genEmployees <- function (N=1, ageRange=c(20,25), servRange=c(0,5),
 
     for (i in 1:N) {
         m <- member(age=ages[i], service=servs[i], salary=salaries[i],
-                    sex=sex[i], tier=tier, mortClass=class, status=status,
+                    sex=sex[i], tier=tier, mortClass=mortClass, sysName=sysName,
+                    sysClass=sysClass, status=status,
                     currentYear=currentYear, cola=cola, verbose=verbose);
 
         members[[m$id]] <- m;
@@ -1099,6 +1128,28 @@ makeTbl <- function(memberList, sampler=function(m) {TRUE} ) {
 
     return(out);
 }
+
+## Every year, premiums are collected for everyone.  Imagine a big
+## matrix of premium payments, where each row represents a year of
+## premiums (P) and pension payments (R), and each column is all the
+## actives who will retire in a class.
+##
+## year
+##   1   P11   P12   P13   P14   P15 ...
+##   2   R21   P22   P23   P24   P25 ...
+##   3   R31   R32   P33   P34   P35 ...
+##   4   R41   R42   R43   P44   P45 ...
+##   5   R51   R52   R53   R54   P55 ...
+##   6     .     .     .     .    .  ...
+##   7     .     .     .     .    .  ...
+##   8     .     .     .     .    .  ...
+##
+## The "1" class (first column) retires at the end of year 1, so
+## receives its pension benefits in year 2.  The 2 class retires at
+## the end of year 2, and so on.  We refer to this below as the master
+## cash flow matrix.
+##
+##
 
 ## Build the master cash flow matrix.  This involves grouping retirees
 ## by retirement date and aggregating them.
