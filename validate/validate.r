@@ -136,8 +136,14 @@ validateDoesMemberDie <- function(N, sex, mortClass="General",
 ## Calculate a pension. Uses data in validation-data, but you can use
 ## adjYear and adjRetire to adjust the year and retirement year of the
 ## two time series.
+##
+## Try validateProjectPension(status="active", adjYear=0, adjRetire=0,
+##                            mortClass="Safety", tier="1",
+##                            sysClass="mariPol") %>%
+##     displayPensionValidation()
+## Also status="separated".
 validateProjectPension <- function(status="active", adjYear=0, adjRetire=0,
-                                   mortClass="General", tier="A",
+                                   mortClass="General", tier="A", cola=1.02,
                                    sysName="this", sysClass="",
                                    verbose=FALSE) {
 
@@ -168,7 +174,7 @@ validateProjectPension <- function(status="active", adjYear=0, adjRetire=0,
     }
 
     salaryHistory <- projectPension(salaryHistory, tier=tier, mortClass=mortClass,
-                                    sysName=sysName, sysClass=sysClass,
+                                    cola=cola, sysName=sysName, sysClass=sysClass,
                                     verbose=verbose) %>%
         mutate(cola=ifelse(lag(pension)==0,
                            0,
@@ -177,10 +183,21 @@ validateProjectPension <- function(status="active", adjYear=0, adjRetire=0,
     return(salaryHistory);
 }
 
-displayPensionValidation <- function(salaryHistory) {}
+## Try validateProjectPension(...) %>% displayPensionValidation().
+displayPensionValidation <- function(salaryHistory) {
+    return(salaryHistory %>%
+           select(year, age, service, salary, premium, status, pension, cola));
+}
 
 
-validateProjectPremiums <- function() {}
+validateProjectPremiums <- function(adjYear=0, tier="1", mortClass="General",
+                            sysName="this", sysClass="", verbose=FALSE) {
+
+    salaryHistory <- read.csv("../../validate/data/salary-validate-2.csv");
+    return(projectPremiums(salaryHistory=salaryHistory, adjYear=adjYear, tier=tier,
+                           mortClass=mortClass, sysName=sysName, sysClass=sysClass,
+                           verbose=verbose));
+}
 
 validateProjectSalaryDelta <- function(startYear=1990, endYear=2030,
                                        startAge=25, tier="A", mortClass="General",
@@ -188,21 +205,23 @@ validateProjectSalaryDelta <- function(startYear=1990, endYear=2030,
                                        verbose=FALSE) {
     out <- tibble(year=startYear:endYear) %>%
         mutate(age=startAge + year - startYear,
-               service=1 + year - startYear);
+               service=year - startYear);
 
     salary <- c(1000.0);
     for (i in 2:length(out$year)) {
-        salary <- c(salary, salary[i - 1] * projectSalaryDelta(out$year[i - 1],
-                                                               out$age[i - 1],
-                                                               salary[i - 1],
-                                                               out$service[i - 1],
-                                                               tier=tier,
-                                                               mortClass=mortClass,
-                                                               sysName=sysName,
-                                                               sysClass=sysClass,
-                                                               verbose=verbose));
+        salary <- c(salary,
+                    salary[i - 1] * projectSalaryDelta(out$year[i - 1],
+                                                       out$age[i - 1],
+                                                       salary[i - 1],
+                                                       out$service[i - 1],
+                                                       tier=tier,
+                                                       mortClass=mortClass,
+                                                       sysName=sysName,
+                                                       sysClass=sysClass,
+                                                       verbose=verbose));
     }
     out$salary <- salary;
+
     out <- out %>% mutate(delta=(salary-lag(salary))/lag(salary));
 
     return(out);
@@ -300,8 +319,8 @@ validateDoesMemberRetireB <- function(N, sex="M", status="active",
     
     for (i in 1:N) {
         ## Create an individual with the given status and tier.
-        age <- 40 - 1;
-        service <- min(age - 21, round(rnorm(1, mean=10, sd=5))) - 1;
+        age <- 43;
+        service <- max(0, min(age - 21, round(rnorm(1, mean=10, sd=5))));
         curStatus <- status;
 
         if (verbose) cat(" Member age:", age, "sex:", sex, "service:", service,
@@ -329,6 +348,7 @@ validateDoesMemberRetireB <- function(N, sex="M", status="active",
     return(out);
 }
 
+## Try: validateDoesMemberRetireB(1000, tier="B") %>% ggplot()  + geom_point(aes(x=age,y=disabled))
 validateDoesMemberBecomeDisabledB <- function(N, sex="M", status="active",
                                               tier="A", mortClass="General",
                                               sysName="this", sysClass="",
