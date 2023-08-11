@@ -400,10 +400,12 @@ simulateCareerBackward <- function(year, age, service, salary,
     fromData <- c(FALSE);
     years <- c(year);
 
-    ## March backward to the year of initial hire.
+    ## March backward to the year of initial hire. We only want to
+    ## generate records for previous years, so if the input has
+    ## service=0, there is nothing to do here.
     if (service > 0) {
-        for (iyear in seq(from=year - 1, to=year - service + 1)) {
-            ## cat("calculating for", iyear, "\n");
+        for (iyear in seq(from=year - 1, to=year - service)) {
+            cat("calculating for", iyear, "\n");
             ages <- c(ages, age - (year - iyear));
             services <- c(services, service - (year - iyear));
             salaries <-
@@ -712,8 +714,8 @@ member <- function(age=0, service=0, salary=0,
                    sysName="this", sysClass="", 
                    verbose=FALSE) {
 
-    if (verbose) cat("Creating a member with birthYear:", birthYear, ", age: ", age,
-                     ", sex: ", sex, ", mortClass: ", mortClass,
+    if (verbose) cat("Creating a member with birthYear:", birthYear,
+                     ", age: ", age, ", sex: ", sex, ", mortClass: ", mortClass,
                      "\nhireYear: ", hireYear, ", sepYear: ", sepYear,
                      ", retireYear: ", retireYear, ", tier: ", tier, "\n", sep="");
     
@@ -1063,8 +1065,8 @@ latex.memberList <- function(ml, ...) {
 
 ## Generate N new active employees with the given ranges, and append
 ## them to the input list of members.
-genEmployees <- function (N=1, ageRange=c(20,25), servRange=c(0,5),
-                          avgSalary=75000, sdSalary=5000,
+genEmployees <- function (N=1, ageRange=c(20,25), ageLimits=c(20,75),
+                          servRange=c(0,5), avgSalary=75000, sdSalary=5000,
                           members=memberList(),
                           sex="M", tier="1", currentYear=2022,
                           mortClass="General", status="active",
@@ -1077,12 +1079,16 @@ genEmployees <- function (N=1, ageRange=c(20,25), servRange=c(0,5),
                      "avgSalary:", avgSalary, "age range:", ageRange[1], "-",
                      ageRange[2], "service:", servRange[1], "-", servRange[2],
                      "tier:", tier, "class:", mortClass, "status:", status, "\n");
-    
-    ages <- round(runif(N)*(ageRange[2] - ageRange[1])) + ageRange[1];
-    ## Set a lower bound here so we don't have 26 year olds with 9
+
+    ## Choose some ages, make sure they are within bounds.
+    ages <- sapply(round(runif(N)*(ageRange[2] - ageRange[1])) + ageRange[1],
+                   function(x) { max( min( x, ageLimits[2]), ageLimits[1]) });
+
+    ## Set an upper bound on service here so we don't have 26 year olds with 9
     ## years of service.
-    servs <- sapply(round(runif(N)*(servRange[2] - servRange[1])) + servRange[1],
-                    function(x) { min(19, x) });
+    servs <- pmin(round(runif(N)*(servRange[2] - servRange[1])) + servRange[1],
+                  ages - ageLimits[1]);
+
     salaries <- rnorm(N, mean=avgSalary, sd=sdSalary);
 
     ## The sex arg can be a list like (M=0.4, F=0.6) indicating proportions of
@@ -1201,10 +1207,10 @@ buildMasterCashFlow <- function(memberTbl, members, verbose=FALSE) {
                 if (verbose) cat("adding", id, format(members[[id]]), "\n");
 
                 for (iyear in members[[id]]$salaryHistory$year) {
-                    yearsFlow <- as.numeric(members[[id]]$salaryHistory %>%
+                    yearsFlow <- members[[id]]$salaryHistory %>%
                         filter(year == iyear) %>%
                         mutate(flow = premium - pension) %>%
-                        select(flow));
+                        select(flow) %>% as.numeric();
                     collectiveCashFlow[1 + iyear - startYear] <-
                         collectiveCashFlow[1 + iyear - startYear] + yearsFlow;
                 }
