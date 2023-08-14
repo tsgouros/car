@@ -142,33 +142,30 @@ validateDoesMemberDie <- function(N, sex, mortClass="General",
 ##                            sysClass="mariPol") %>%
 ##     displayPensionValidation()
 ## Also status="separated".
-validateProjectPension <- function(status="active", adjYear=0, adjRetire=0,
+validateProjectPension <- function(status="active", adjYear=0, 
                                    mortClass="General", tier="A", cola=1.02,
                                    sysName="this", sysClass="",
                                    verbose=FALSE) {
 
     if (status == "active") {
         if (verbose) cat("active -> retired..adjYear:", adjYear,
-                         "adjRetire:", adjRetire, "\n");
+                         "mortClass:", mortClass, "tier:", tier, "\n");
         salaryHistory <- read.csv("../../validate/data/salary-validate-2.csv")  %>%
             mutate(year=year + adjYear,
+                   mortClass=!!mortClass,
+                   tier=!!tier,
+                   service=service-1,
                    pension=0);
-        if (adjRetire > 0) {
-            salaryHistory[22:(22 + adjRetire), "status"] <- "active";
-        } else if (adjRetire > 0) {
-            salaryHistory[(22 + adjRetire):22, "status"] <- "active";
-        }
+
     } else if (status == "separated") {
         if (verbose) cat("separated -> retired..adjYear:", adjYear,
-                         "adjRetire:", adjRetire, "\n");
+                         "mortClass:", mortClass, "tier:", tier, "\n");
         salaryHistory <- read.csv("../../validate/data/salary-validate.csv")  %>%
             mutate(year=year + adjYear,
+                   mortClass=!!mortClass,
+                   tier=!!tier,
+                   service=service-1,
                    pension=0);
-        if (adjRetire > 0) {
-            salaryHistory[31:(31 + adjRetire), "status"] <- "separated";
-        } else if (adjRetire > 0) {
-            salaryHistory[(31 + adjRetire):31, "status"] <- "separated";
-        }
     } else {
         return(NA);
     }
