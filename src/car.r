@@ -405,7 +405,9 @@ simulateCareerBackward <- function(year, age, service, salary,
     ## service=0, there is nothing to do here.
     if (service > 0) {
         for (iyear in seq(from=year - 1, to=year - service)) {
-            cat("calculating for", iyear, "\n");
+            if (verbose) cat("calculating for year: ", iyear, ", age: ",
+                             age - (year - iyear), ", service: ",
+                             service - (year - iyear), "\n", sep=""); 
             ages <- c(ages, age - (year - iyear));
             services <- c(services, service - (year - iyear));
             salaries <-
