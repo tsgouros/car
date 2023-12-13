@@ -1363,7 +1363,8 @@ plotModelOut <- function(modelOut, xlimits=c(2020,2065), ylimits=c(0,0.1)) {
 }
 
 altPlotModelOut <- function(modelOut,
-                            xlimits=c(2020,2065), ylimits=c(-0.05,0.1)) {
+                            xlimits=c(2020,2065), ylimits=c(-0.05,0.1),
+                            system="") {
 
     modelOutSummary <-
         modelOut %>%
@@ -1391,7 +1392,7 @@ altPlotModelOut <- function(modelOut,
                  x=xlimits[2], y=modelOutAvg, color="blue",
                  vjust=-0.3,hjust=0.5) +
         theme(legend.position="NONE") +
-        labs(x="retirement class", y="CAR");
+        labs(x=paste("Retirement class", system), y="CAR");
 
     return(plotOut);
 }
