@@ -159,6 +159,9 @@ doesMemberDie <- function(memberAge, memberSex, memberStatus,
     outStatus <- memberStatus;
     if (runif(1) < threshold) outStatus <- "deceased";
 
+    ## Really, there are limits.
+    if (memberAge > 110) outStatus <- "deceased";
+
     if (verbose)
         cat(" threshold: ",threshold, " result: ", outStatus, "\n", sep="");
 
