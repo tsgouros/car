@@ -443,19 +443,19 @@ projectPension <- function(salaryHistory, tier="1", mortClass="Safety",
 
     ## Is this a DROP retirement? If so, just delete the last few
     ## years of contributions and reduce the starting pension.
-    if ((tier == "1") & (runif(1) < 0.6)) {
-        ## Yes, a DROP.
-        if (verbose) cat("calculating pension as a DROP.\n")
-        salaryHistory <- projectDROP(salaryHistory, retireYear, preRetStatus,
-                                     service, tier=tier, mortClass=mortClass,
-                                     sysName=sysName, sysClass=sysClass,
-                                     verbose=verbose);
-    }
+    ## if ((tier == "1") & (runif(1) < 0.6)) {
+    ##     ## Yes, a DROP.
+    ##     if (verbose) cat("calculating pension as a DROP.\n")
+    ##     salaryHistory <- projectDROP(salaryHistory, retireYear, preRetStatus,
+    ##                                  service, tier=tier, mortClass=mortClass,
+    ##                                  sysName=sysName, sysClass=sysClass,
+    ##                                  verbose=verbose);
+    ## }
     
     return(salaryHistory);
 }
 
-
+## This does not appear to be usefully correct.
 projectDROP <- function(salaryHistory, retireYear, status, service, tier="1",
                         mortClass="General", sysName="this", sysClass="",
                         verbose=FALSE) {
@@ -604,9 +604,38 @@ psprsModel <- function(sysName, verbose=FALSE) {
 ## systems <- c("020","023","024","025","026","027","028","031",
 ##              "032","033","034","035")
 
+sys01 <- c("001","002","003","004","005","007","008","009","010");
+sys02 <- c("011","012","013","014","015","016","017","018","020","021");
+sys03 <- c("022","023","024","025","026","027","028","029","030","031");
+sys04 <- c("032","033","034","035","036","037","038","039","040","041");
+sys05 <- c("042","043","044","045","046","047","049","050","051","052");
+sys06 <- c("053","054","055","056","058","059","060","061","062","064");
+sys07 <- c("065","066","067","069","070","071","072","073","074","076");
+sys08 <- c("077","078","079","080","081","083","085","086","087","088");
+sys09 <- c("089","090","091","092","093","094","095","096","097","098");
+sys10 <- c("100","101","102","103","104","105","106","107","108","109");
+sys11 <- c("110","111","112","113","114","115","116","117","118","119");
+sys12 <- c("120","121","122","123","124","125","126","127","128","129");
+sys13 <- c("130","131","132","133","134","136","137","138","139","140");
+sys14 <- c("142","143","144","145","146","147","148","149","150","151");
+sys15 <- c("153","154","155","156","157","158","160","162","163","164");
+sys16 <- c("165","166","167","168","169","170","171","172","173","174");
+sys17 <- c("176","177","178","179","180","181","182","185","187","188");
+sys18 <- c("190","192","193","194","195","196","197","198","199","200");
+sys19 <- c("201","202","203","204","206","207","208","209","210","211");
+sys20 <- c("212","213","214","215","216","217","221","222","223","224");
+sys21 <- c("225","226","227","228","229","231","232","233","234","235");
+sys22 <- c("236","237","238","239","241","242","243","244","245","246");
+sys23 <- c("247","248","249","250","251","252","253","254","255","256");
+sys24 <- c("257","258","259","261","262","263","264","265");
+
 systems <- c("020")
 
-for (s in systems) {
-    cat(s, "-", assumptionKey %>% filter(sysNumCh==s) %>% select(sysName) %>% as.character(), "\n");
-    eval(parse(text=paste0("azModelOutput", s, "D<-runModel(function(verbose) {psprsModel(\"", s, "\",verbose=verbose)}, N=5, audit=TRUE, reallyVerbose=FALSE, verbose=TRUE)"),"\n"));
+for (s in c("007","008","009","010",sys02,sys03,sys04,sys05)) {
+    sysName <- assumptionKey %>% filter(sysNumCh==s) %>% select(sysName) %>% as.character();
+    sysOutput <- paste0("azModelOutput", s);
+    cat(s, "-", sysName, "\n");
+    eval(parse(text=paste0(sysOutput, "<-runModel(function(verbose) {psprsModel(\"", s, "\",verbose=verbose)}, N=50, audit=FALSE, reallyVerbose=FALSE, verbose=TRUE)"),"\n"));
+    eval(parse(text=paste0("ggsave(\"images/modelPlot",s,".png\",plot=altPlotModelOut(",sysOutput,",system=sysName),width=5,height=5)"),"\n"));
+    eval(parse(text=paste0("rm(",sysOutput,")"),"\n"));
 }
