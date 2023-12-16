@@ -1,4 +1,4 @@
-library(tidyverse)
+library(tidyverse,warn.conflicts=FALSE)
 
 ## This requires the newton.r and mortality.r functions to be loaded first.
 ## To load from remote directories, do this:
@@ -707,6 +707,9 @@ projectCareerFromOneYear <- function(year, age, service, salary, sex="M",
 ## The point of this function is to use the data given for some specific year
 ## and individual, and generate a cash flow for that individual's career and
 ## retirement. (This is the salaryHistory data frame.)
+##
+## The 'tier' argument can be either a string indicating the tier, or
+## a function that looks like tier(year,age,hireYear,service).
 member <- function(age=0, service=0, salary=0,
                    id="none", salaryHistory=NA,
                    currentYear=2018, birthYear=0,
@@ -716,11 +719,13 @@ member <- function(age=0, service=0, salary=0,
                    sysName="this", sysClass="", 
                    verbose=FALSE) {
 
-    if (verbose) cat("Creating a member with birthYear:", birthYear,
-                     ", age: ", age, ", sex: ", sex, ", mortClass: ", mortClass,
-                     "\nhireYear: ", hireYear, ", sepYear: ", sepYear,
-                     ", retireYear: ", retireYear, ", tier: ", tier, "\n", sep="");
-    
+    if (verbose) {
+        if (is.function(tier)) { tierVal <- "TBD";} else { tierVal <- tier;}
+        cat("Creating a member with birthYear:", birthYear,
+            ", age: ", age, ", sex: ", sex, ", mortClass: ", mortClass,
+            "\nhireYear: ", hireYear, ", sepYear: ", sepYear,
+            ", retireYear: ", retireYear, ", tier: ", tierVal, "\n", sep="");
+    }
     ## The possible status codes as of this telling are: active,
     ##   separated, retired, retired/survivor, deceased,
     ##   disabled/accident, and disabled/ordinary.
@@ -744,13 +749,22 @@ member <- function(age=0, service=0, salary=0,
             service <- currentYear - hireYear;
         }
 
-        ## Generate an entire career's worth of salary history from the
-        ## single-year snapshot. This also outlines the retirement years, though
-        ## the pension itself is determined later.
+        ## Manage the selection of a tier.
+        if (is.function(tier)) {
+            tierVal <-
+                do.call(tier, alist(year=currentYear, age=age,
+                                    hireYear=hireYear, service=service));
+        } else {
+            tierVal <- tier;
+        }
+        
+        ## Generate an entire career's worth of salary history from
+        ## the single-year snapshot. This also outlines the retirement
+        ## years, though the pension itself is determined later.
         salaryHistory <- projectCareer(year=currentYear, age=age,
                                        service=service, salary=salary,
                                        sex=sex, mortClass=mortClass,
-                                       tier=tier, sysName=sysName,
+                                       tier=tierVal, sysName=sysName,
                                        sysClass=sysClass, verbose=verbose);
     } else {
         ## If we're here, we already have some fraction of a member's
@@ -766,19 +780,20 @@ member <- function(age=0, service=0, salary=0,
         ## from the history we've been given.
         salaryHistory <- projectCareer(salaryHistory=salaryHistory, age=age,
                                        service=service, sex=sex,
-                                       mortClass=mortClass, tier=tier,
+                                       mortClass=mortClass, tier=tierVal,
                                        sysName=sysName, sysClass=sysClass,
                                        verbose=verbose);
     }
 
     ## Add the premiums paid into the system.
-    salaryHistory <- projectPremiums(salaryHistory, tier=tier, mortClass=mortClass,
+    salaryHistory <- projectPremiums(salaryHistory, tier=tierVal,
+                                     mortClass=mortClass,
                                      sysName=sysName, sysClass=sysClass,
                                      verbose=verbose);
 
     ## If this member gets to retire, estimate pension.
     if ("retired" %in% salaryHistory$status) {
-        salaryHistory <- projectPension(salaryHistory, tier=tier,
+        salaryHistory <- projectPension(salaryHistory, tier=tierVal,
                                         mortClass=mortClass,
                                         sysName=sysName, sysClass=sysClass,
                                         cola=cola, verbose=verbose);
@@ -816,7 +831,7 @@ member <- function(age=0, service=0, salary=0,
                 retireYear=retireYear,
                 sex=sex,
                 mortClass=mortClass,
-                tier=tier,
+                tier=tierVal,
                 sysName=sysName,
                 sysClass=sysClass,
                 car=car,
@@ -1076,12 +1091,15 @@ genEmployees <- function (N=1, ageRange=c(20,25), ageLimits=c(20,75),
                           cola=1.02, verbose=FALSE) {
 
     if (N < 1) return(members);
-    
-    if (verbose) cat("Creating", N, "members in", currentYear, "\n",
-                     "avgSalary:", avgSalary, "age range:", ageRange[1], "-",
-                     ageRange[2], "service:", servRange[1], "-", servRange[2],
-                     "tier:", tier, "class:", mortClass, "status:", status, "\n");
 
+    if (verbose) {
+        if (is.function(tier)) { tierVal <- "TBD";} else { tierVal <- tier;}
+        cat("Creating", N, "members in", currentYear, "\n",
+            "avgSalary:", avgSalary, "age range:", ageRange[1], "-",
+            ageRange[2], "service:", servRange[1], "-", servRange[2],
+            "tier:", tierVal, "class:", mortClass, "status:", status, "\n");
+    }
+    
     ## Choose some ages, make sure they are within bounds.
     ages <- sapply(round(runif(N)*(ageRange[2] - ageRange[1])) + ageRange[1],
                    function(x) { max( min( x, ageLimits[2]), ageLimits[1]) });
@@ -1254,7 +1272,8 @@ runModelOnce <- function(modelConstructionFunction,
                      "to", head(tail(colnames(modelMCF),2),1), "\n");
 
     ## Compute the CAR for the overall results.
-    modelCAR <- findRate(modelMCF, flowName="sum", maxIter=200, verbose=verbose);
+    modelCAR <- findRate(modelMCF, flowName="sum", maxIter=200,
+                         verbose=verbose);
 
     if (verbose) cat("model: CAR estimate:", modelCAR, "\n");
 
@@ -1276,7 +1295,8 @@ runModelOnce <- function(modelConstructionFunction,
     minRetireYear <- min(modelTbl$retireYear, na.rm=TRUE);
     for (i in 1:(dim(modelMCF)[2] - 2)) {
         newYear <- minRetireYear + i - 1;
-        newRate <- findRate(modelMCF, flowName=paste0("R", newYear), maxIter=200);
+        newRate <- findRate(modelMCF, flowName=paste0("R", newYear),
+                            maxIter=200);
 
         ## If no error, record the rate for this retirement class.
         if (!is.na(newRate)) {
@@ -1332,9 +1352,9 @@ runModel <- function(modelConstructionFunction, N=1,
     if (verbose) cat("Ending at:", date(),"\n");
 
     if (audit) {
-        return(list(modelOut, modelColl));
+        return(list(output=modelOut, model=modelColl));
     } else {
-        return(modelOut);
+        return(list(output=modelOut));
     }
 }
 
