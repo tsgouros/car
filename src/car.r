@@ -1264,7 +1264,7 @@ runModelOnce <- function(modelConstructionFunction,
     ## Make a summary table of all the members.
     modelTbl <- makeTbl(model, sampler=sampler);
 
-    ## Build the master cash flow matrix.
+    ## Build the master cash flow matrix. 
     modelMCF <- buildMasterCashFlow(modelTbl, model, verbose=verbose);
 
     if (verbose) cat("model: Retirement classes:", dim(modelMCF)[2] - 2,
@@ -1352,7 +1352,8 @@ runModel <- function(modelConstructionFunction, N=1,
     if (verbose) cat("Ending at:", date(),"\n");
 
     if (audit) {
-        return(list(output=modelOut, model=modelColl));
+        ## Include the model and audit data in the return list.
+        return(list(output=modelOut, audit=modelColl));
     } else {
         return(list(output=modelOut));
     }
