@@ -166,12 +166,22 @@ validateProjectPension <- function(status="active", adjYear=0,
                    tier=!!tier,
                    service=service-1,
                    pension=0);
+    } else if (status %in% c("disabled","disabled/accident",
+                             "disabled/ordinary")) {
+        salaryHistory <- read.csv("../../validate/data/salary-disability.csv") %>%
+            mutate(year=year + adjYear,
+                   mortClass=!!mortClass,
+                   tier=!!tier,
+                   service=service-1,
+                   pension=0);
     } else {
         return(NA);
     }
 
-    salaryHistory <- projectPension(salaryHistory, tier=tier, mortClass=mortClass,
-                                    cola=cola, sysName=sysName, sysClass=sysClass,
+    salaryHistory <- projectPension(salaryHistory,
+                                    tier=tier, mortClass=mortClass,
+                                    cola=cola, sysName=sysName,
+                                    sysClass=sysClass,
                                     verbose=verbose) %>%
         mutate(cola=ifelse(lag(pension)==0,
                            0,
