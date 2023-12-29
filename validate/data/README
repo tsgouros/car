@@ -1,2 +1,7 @@
-Two salary records, one who works 20 years and then retires, the other
-leaves the department and retires after a several-year separation.
+Some salary records:
+
+  salary-validate.csv - Works 18 years, leaves, retires at 62.
+
+  salary-validate-2.csv - Works 20 years and then retires, at 57.
+
+  salary-disability.csv - Works 18 years, becomes disabled/accident at 50.
