@@ -163,10 +163,13 @@ doesMemberBecomeDisabled <- function(age, sex, service, status, tier="1",
                    mortClass=mortClass, sysName=sysName, sysClass=sysClass,
                    verbose=verbose);
 
-    ## If already retired or dead or something, get out.
-    if (checkStatus(status, acceptable=c("retired", "retired/survivor",
-                                         "deceased", "disabled/accident",
-                                         "disabled/ordinary"))) return(status);
+    ## If already retired or dead or something, get out. Status "separated"
+    ## doesn't usually work, either.
+    if (checkStatus(status,
+                    acceptable=c("retired", "retired/survivor",
+                                 "deceased", "disabled/accident",
+                                 "separated", "disabled/ordinary")))
+        return(status);
 
     status <- doesMemberDisableOrdinary(age, sex, service, status, tier=tier,
                                         mortClass=mortClass, sysName=sysName,
@@ -792,26 +795,31 @@ member <- function(age=0, service=0, salary=0,
                                      verbose=verbose);
 
     ## If this member gets to retire, estimate pension.
-    if ("retired" %in% salaryHistory$status) {
+    retireStatuses <- c("retired","disabled",
+                        "disabled/accident",
+                        "disabled/ordinary");
+    if (Reduce("|", retireStatuses %in% salaryHistory$status)) {
         salaryHistory <- projectPension(salaryHistory, tier=tierVal,
                                         mortClass=mortClass,
                                         sysName=sysName, sysClass=sysClass,
                                         cola=cola, verbose=verbose);
-        retireYear <- as.numeric(salaryHistory %>%
-            filter(status=="retired") %>% summarize(retireYear=min(year)));
+        retireYear <- salaryHistory %>%
+            filter(status %in% retireStatuses) %>%
+            summarize(retireYear=min(year)) %>% as.numeric();
     } else {
         retireYear <- NA;
     }
 
     if ("separated" %in% salaryHistory$status) {
-        sepYear <- as.numeric(salaryHistory %>%
-            filter(status=="separated") %>% summarize(sepYear=min(year)));
+        sepYear <- salaryHistory %>%
+            filter(status=="separated") %>%
+            summarize(sepYear=min(year)) %>% as.numeric();
     } else {
         sepYear <- NA;
     }
 
     ## Estimate CAR for this employee.
-    if ("retired" %in% salaryHistory$status) {
+    if (Reduce("|", retireStatuses %in% salaryHistory$status)) {
         car <- findRate(salaryHistory %>% mutate(netFlow = premium - pension),
                         flowName="netFlow", maxIter=200, verbose=verbose);
     } else {
@@ -868,12 +876,15 @@ format.member <- function(m, ...) {
                   " -> (", career$endYear[1], ", ",
                   format(career$endSalary[1], digits=5, big.mark=","), ")");
 
+    retireStatuses <- c("retired","disabled",
+                        "disabled/accident", "disabled/ordinary");
+    
     if (!is.na(m$retireYear)) {
         retirement <- m$salaryHistory %>%
             group_by(status) %>%
             summarize(startYear=first(year), startPension=first(pension),
                       endYear=last(year), endPension=last(pension)) %>%
-            filter(status == "retired");
+            filter(status %in% retireStatuses);
         out <- paste0(out, "\n",
                   "     pension:       (", retirement$startYear[1], ", ",
                   format(retirement$startPension[1], digits=5, big.mark=","), ") ",
@@ -886,7 +897,11 @@ format.member <- function(m, ...) {
     }
 
     out <- paste0(out, "\n",
-                  "     car: ", format(m$car, digits=4));
+                  "     car: ", format(m$car, digits=5),
+                  "    retire type: ", m$salaryHistory %>%
+                                       filter(year==m$retireYear) %>%
+                                       mutate(status=as.character(status)) %>%
+                                       select(status) );
 
     return(out);
 }
@@ -1264,7 +1279,7 @@ runModelOnce <- function(modelConstructionFunction,
     ## Make a summary table of all the members.
     modelTbl <- makeTbl(model, sampler=sampler);
 
-    ## Build the master cash flow matrix. 
+    ## Build the master cash flow matrix.
     modelMCF <- buildMasterCashFlow(modelTbl, model, verbose=verbose);
 
     if (verbose) cat("model: Retirement classes:", dim(modelMCF)[2] - 2,
