@@ -68,24 +68,32 @@ terminationRatesPSPRS <- read_excel(retirementRateTableFile,
 terminationRatesPSPRS$service[21] <- "20"
 terminationRatesPSPRS$service <- as.numeric(terminationRatesPSPRS$service)
 
-retirementRatesPSPRS.with20 <- read_excel(retirementRateTableFile,
-                                          sheet="PSPRS", range="Q8:W22",
-                                          col_names=c("service", "mariFire",
-                                                      "otherFire",
-                                                      "pimaFire", "mariPol",
-                                                      "otherPol", "pimaPol"))
-retirementRatesPSPRS.with20$service[15] <- "34"
-retirementRatesPSPRS.with20$service <-
-    as.numeric(retirementRatesPSPRS.with20$service)
+retirementRatesPSPRST1.with20 <- read_excel(retirementRateTableFile,
+                                            sheet="PSPRS", range="Q8:W22",
+                                            col_names=c("service", "mariFire",
+                                                        "otherFire",
+                                                        "pimaFire", "mariPol",
+                                                        "otherPol", "pimaPol"))
+retirementRatesPSPRST1.with20$service[15] <- "34"
+retirementRatesPSPRST1.with20$service <-
+    as.numeric(retirementRatesPSPRST1.with20$service)
 
-retirementRatesPSPRS.wout20 <- read_excel(retirementRateTableFile,
-                                          sheet="PSPRS", range="Q30:W38",
-                                          col_names=c("age", "mariFire",
-                                                      "otherFire",
-                                                      "pimaFire", "mariPol",
-                                                      "otherPol", "pimaPol"))
-retirementRatesPSPRS.wout20$age[9] <- "70"
-retirementRatesPSPRS.wout20$age <- as.numeric(retirementRatesPSPRS.wout20$age)
+retirementRatesPSPRST1.wout20 <- read_excel(retirementRateTableFile,
+                                            sheet="PSPRS", range="Q30:W38",
+                                            col_names=c("age", "mariFire",
+                                                        "otherFire",
+                                                        "pimaFire", "mariPol",
+                                                        "otherPol", "pimaPol"))
+retirementRatesPSPRST1.wout20$age[9] <- "70"
+retirementRatesPSPRST1.wout20$age <- as.numeric(retirementRatesPSPRST1.wout20$age)
+
+retirementRatesPSPRST2 <- read_excel(retirementRateTableFile,
+                                     sheet="PSPRS", range="Y8:Z20",
+                                     col_names=c("age", "rate"));
+retirementRatesPSPRST2$age[1] <- "52";
+retirementRatesPSPRST2$age[13] <- "64";
+retirementRatesPSPRST2$age <- as.numeric(retirementRatesPSPRST2$age)
+
 
 salaryIncreaseRatesPSPRS <- read_excel(retirementRateTableFile,
                                        sheet="PSPRS", range="AB8:AH41",
@@ -224,14 +232,30 @@ doesMemberRetire <- function(age, sex, service, status="active", tier="1",
                                          "deceased", "disabled/accident",
                                          "disabled/ordinary"))) return(status);
 
-    if (service >= 20) {
-        retirementProbability  <-
-            retirementRatesPSPRS.with20[min(service, 34) - 19, sysClass];
-    } else if (age >= 62) {
-        retirementProbability <-
-            retirementRatesPSPRS.wout20[min(age, 70) - 61, sysClass];
-    } else {
-        retirementProbability <- 0.0
+    if (tier == "1") {
+        if (service >= 20) {
+            retirementProbability  <-
+                retirementRatesPSPRST1.with20[min(service, 34) - 19, sysClass];
+        } else if ((age >= 62) && (service >= 15)) {
+            retirementProbability <-
+                retirementRatesPSPRST1.wout20[min(age, 70) - 61, sysClass];
+        } else {
+            retirementProbability <- 0.0
+        }
+    } else if (tier == "2") {
+        if ((age >= 52) && (service >= 15)) {
+            retirementProbability  <-
+                retirementRatesPSPRST2[min(age, 64) - 51, "rate"];
+        } else {
+            retirementProbability <- 0.0;
+        }
+    } else if (tier == "3") {
+        if ((age >= 55) && (service >= 15)) {
+            retirementProbability  <-
+                retirementRatesPSPRST2[min(age, 64) - 51, "rate"];
+        } else {
+            retirementProbability <- 0.0;
+        }
     }
 
     if (runif(1) < retirementProbability) status <- "retired";
@@ -248,10 +272,13 @@ doesMemberBecomeDisabled <- function(age, sex, service, status, tier="1",
                      mortClass=mortClass, sysName=sysName, sysClass=sysClass,
                      verbose=verbose);
 
-    ## If already retired or dead or something, get out.
-    if (checkStatus(status, acceptable=c("retired", "retired/survivor",
-                                         "deceased", "disabled/accident",
-                                         "disabled/ordinary"))) return(status);
+    ## If already retired or dead or something, get out. Status "separated"
+    ## doesn't count either.
+    if (checkStatus(status,
+                    acceptable=c("retired", "retired/survivor",
+                                 "deceased", "disabled/accident",
+                                 "separated", "disabled/ordinary")))
+        return(status);
 
     ## Select age, roll dice.
     if (age < 61) {
@@ -261,8 +288,14 @@ doesMemberBecomeDisabled <- function(age, sex, service, status, tier="1",
         disabilityProbability <- 0.0
     }
 
-    if (runif(1) < disabilityProbability) status <- "disabled/accident";
-
+    if (runif(1) < disabilityProbability) {
+        if (runif(1) > 0.9) {
+            status <- "disabled/ordinary";
+        } else {
+            status <- "disabled/accident";
+        }
+    }
+    
     return(status);
 }
 
@@ -311,55 +344,15 @@ projectSalaryDelta <- function(year, age, salary, service=1, tier="1",
     return(delta);
 }
 
-projectPension <- function(salaryHistory, tier="1", mortClass="Safety",
-                           cola=1.0175, sysName="this", sysClass="",
-                           verbose=FALSE) {
-    
-    if (verbose) {
-        cat("projectPension"); print((salaryHistory));
-    }
-    
-    sex <- first(salaryHistory$sex);
-    service <- sum(salaryHistory$salary > 0);
+## This is the "Average Monthly Benefit Compensation".
+calcBaseSalary <- function(salaryHistory, tier) {
 
-    ## Get the last status before retired.
-    preRetireYear <- salaryHistory %>% filter(status=="retired") %>%
-                        dplyr::summarize(retireYear=min(year)) %>%
-                        as.numeric() - 1;
-    preRetStatus <- salaryHistory %>%
-        filter(year == preRetireYear) %>%
-        select(status) %>%
-        mutate_if(is.factor, as.character) %>%  ## <<-- !
-        as.character() ;
-    
-    if (verbose) cat("projectPension: ");
-    validateInputsAZ(age=min(salaryHistory$age),
-                     sex=sex,
-                     service=service,
-                     status=preRetStatus,
-                     tier=tier,
-                     mortClass=mortClass,
-                     sysName=sysName, sysClass=sysClass,
-                     verbose=verbose);
-    
-    ## Calculate the base salary from which to calculate the pension.
+        ## Calculate the base salary from which to calculate the pension.
     if (tier == "1") {
         # Find the maximum 3-year period.
         s <- tail(salaryHistory$salary[salaryHistory$salary > 0], 20);
         threeYears <- c(s, 0, 0) + c(0, s, 0) + c(0, 0, s);
-        avgSalary <- max(threeYears) / 3.0;
-
-        startingPension <- 0.5 * avgSalary;
-
-        if ((service >= 15) && (service < 20)) {
-            startingPension <- startingPension * (1 - ((20 - service) * 0.04));
-        } else if (service >= 25) {
-            startingPension <- startingPension * (1 + ((service - 20) * 0.025));
-        } else { ## 20-25
-            startingPension <- startingPension * (1 + ((service - 20) * 0.02));
-        }
-
-        startingPension <- min(0.8 * avgSalary, startingPension);
+        baseSalary <- max(threeYears) / 3.0;
     } else if (tier == "2") {
         # Find the maximum 5-year period.
         s <- tail(salaryHistory$salary[salaryHistory$salary > 0], 20);
@@ -370,23 +363,8 @@ projectPension <- function(salaryHistory, tier="1", mortClass="Safety",
             c(0, 0, s, 0, 0) +
             c(0, 0, 0, s, 0) +
             c(0, 0, 0, 0, s);
-        avgSalary <- max(fiveYears) / 5.0;
+        baseSalary <- max(fiveYears) / 5.0;
 
-        if ((service >= 15) && (service < 17)) {
-            benefitMultiplier <- 0.015;
-        } else if ((service >= 17) && (service < 19)) {
-            benefitMultiplier <- 0.0175;
-        } else if ((service >= 19) && (service < 22)) {
-            benefitMultiplier <- 0.02;
-        } else if ((service >= 22) && (service < 25)) {
-            benefitMultiplier <- 0.0225;
-        } else if (service >= 25) {
-            benefitMultiplier <- 0.025;
-        } else { print(as.data.frame(salaryHistory)); cat("tier:", tier, "service:", service, "\n");}
-
-        startingPension <- avgSalary * (service * benefitMultiplier);
-
-        startingPension <- min(0.8 * avgSalary, startingPension);
     } else if (tier == "3") {
         # Find the maximum 5-year period.
         s <- tail(salaryHistory %>%
@@ -401,8 +379,29 @@ projectPension <- function(salaryHistory, tier="1", mortClass="Safety",
             c(0, 0, s, 0, 0) +
             c(0, 0, 0, s, 0) +
             c(0, 0, 0, 0, s);
-        avgSalary <- max(fiveYears) / 5.0;
+        baseSalary <- max(fiveYears) / 5.0;
+    }
 
+    return(baseSalary);
+}
+
+calcPension <- function(baseSalary, tier, service) {
+
+    ## We have a base salary. Now calculate the pension from the base salary.
+    if (tier == "1") {
+
+        startingPension <- 0.5 * baseSalary;
+        
+        if ((service >= 15) && (service < 20)) {
+            startingPension <- startingPension * (1 - ((20 - service) * 0.04));
+        } else if ((service >= 20) && (service < 25)) { ## 20-25
+            startingPension <- startingPension * (1 + ((service - 20) * 0.02));
+        } else if (service >= 25) {
+            startingPension <- startingPension * (1 + ((service - 20) * 0.025));
+        } else {
+            cat("shouldn't be here\n");
+        }
+    } else if ((tier == "2") || (tier == "3")) {
         if ((service >= 15) && (service < 17)) {
             benefitMultiplier <- 0.015;
         } else if ((service >= 17) && (service < 19)) {
@@ -414,20 +413,143 @@ projectPension <- function(salaryHistory, tier="1", mortClass="Safety",
         } else if (service >= 25) {
             benefitMultiplier <- 0.025;
         } else {
-            ## This is an error condition, and a fault will follow.
-            print(as.data.frame(salaryHistory));
+            benefitMultiplier <- 1/service;
+
+            cat("Unexpected service in tier 2\n");
+            #print(as.data.frame(salaryHistory));
             cat("tier:", tier, "service:", service, "\n");
         }
 
-        startingPension <- avgSalary * (service * benefitMultiplier);
+        startingPension <- baseSalary * (service * benefitMultiplier);
 
-        startingPension <- min(0.8 * avgSalary, startingPension);
     } else if (tier == "0") {
         ## The tier 0 people can retire again but they don't get
         ## another pension.
         startingPension <- 0.0;
+    } else {
+        cat("Don't know this tier: ", tier, "\n", sep="");
     }
 
+    startingPension <- min(0.8 * baseSalary, startingPension);
+
+    return(startingPension);
+}
+
+projectDisabilityPension <- function(salaryHistory, tier="1",
+                                     mortClass="Safety", cola=1.0185,
+                                     sysName="this", sysClass="",
+                                     verbose=FALSE) {
+
+    ## Disabilities in the line of duty get you the larger of 50% of
+    ## Average Monthly Benefit Compensation and the monthly Normal
+    ## Retirement pension that the member is entitled to receive if he
+    ## or she retired immediately.
+    sex <- first(salaryHistory$sex);
+    service <- sum(salaryHistory$salary > 0);
+
+    disabledStatuses <- c("disabled","disabled/accident","disabled/ordinary");
+
+    ## Get the last status before retired.
+    preDisabledYear <- salaryHistory %>%
+        filter(status %in% disabledStatuses) %>%
+        dplyr::summarize(retireYear=min(year)) %>%
+        as.numeric() - 1;
+    preDisabledStatus <- salaryHistory %>% filter(year == preDisabledYear) %>%
+        select(status) %>%
+        mutate_if(is.factor, as.character) %>%  ## <<-- !
+        as.character() ;
+    preDisabledAge <- salaryHistory %>% filter(year == preDisabledYear) %>%
+        select(age) %>% as.numeric();
+    
+    if (verbose) cat("projectDisabilityPension: ");
+    validateInputsAZ(age=min(salaryHistory$age),
+                     sex=sex,
+                     service=service,
+                     status=preDisabledStatus,
+                     tier=tier,
+                     mortClass=mortClass,
+                     sysName=sysName, sysClass=sysClass,
+                     verbose=verbose);
+
+    ## This is the "average monthly benefit compensation"
+    baseSalary <- calcBaseSalary(salaryHistory, tier);
+    disabilityPension <- 0.5 * baseSalary;
+
+    retirementPension <- 0;
+
+    ## Actuaries assume that 90% of disabilities are work-related. For
+    ## the non-work related disabilities, it's just the standard
+    ## retirement pension.
+    if (runif(1) > 0.9) disabilityPension <- retirementPension;
+    
+    ## If this person is eligible for retirement, figure that out.
+    if (tier == "1") {
+        if ((service >= 20) | ((preDisabledAge >= 62) && (service >= 15))) {
+            retirementPension <- calcPension(baseSalary, tier, service);
+            disabilityPension <- max(disabilityPension, retirementPension);
+        }
+    } else if (tier == "2") {
+        if ((preDisabledAge >= 52) && (service >= 15)) {
+            retirementPension <- calcPension(baseSalary, tier, service);
+            disabilityPension <- max(disabilityPension, retirementPension);
+        }
+    } else if (tier == "3") {
+        if ((preDisabledAge >= 55) && (service >= 15)) {
+            retirementPension <- calcPension(baseSalary, tier, service);
+            disabilityPension <- max(disabilityPension, retirementPension);
+        }
+    }
+    
+    ## If this person was never disabled, send them away without a pension.
+    if (!(Reduce("|", disabledStatuses %in% salaryHistory$status)))
+        return(salaryHistory %>% mutate(pension = 0));
+
+    retireYear <- as.numeric(salaryHistory %>%
+                             filter(status %in% disabledStatuses) %>%
+                             summarize(retireYear=min(year)));
+
+    salaryHistory <- salaryHistory %>%
+        mutate(pension = ifelse(status %in% disabledStatuses,
+                                disabilityPension * cola^(year - retireYear),
+                                0));
+
+    return(salaryHistory);
+
+}
+    
+projectRetirementPension <- function(salaryHistory, tier="1",
+                                     mortClass="Safety", cola=1.0185,
+                                     sysName="this", sysClass="",
+                                     verbose=FALSE) {
+
+    sex <- first(salaryHistory$sex);
+    service <- sum(salaryHistory$salary > 0);
+
+    ## Get the last status before retired.
+    preRetireYear <- salaryHistory %>% filter(status=="retired") %>%
+                        dplyr::summarize(retireYear=min(year)) %>%
+                        as.numeric() - 1;
+    preRetStatus <- salaryHistory %>%
+        filter(year == preRetireYear) %>%
+        select(status) %>%
+        mutate_if(is.factor, as.character) %>%  ## <<-- !
+        as.character() ;
+    
+    if (verbose) cat("projectRetirementPension: ");
+    validateInputsAZ(age=min(salaryHistory$age),
+                     sex=sex,
+                     service=service,
+                     status=preRetStatus,
+                     tier=tier,
+                     mortClass=mortClass,
+                     sysName=sysName, sysClass=sysClass,
+                     verbose=verbose);
+
+    
+    baseSalary <- calcBaseSalary(salaryHistory, tier);
+    
+    startingPension <- calcPension(baseSalary, tier, service);
+    
     ## If this person never retired, send them away without a pension.
     if (!("retired" %in% salaryHistory$status))
         return(salaryHistory %>% mutate(pension = 0));
@@ -454,6 +576,34 @@ projectPension <- function(salaryHistory, tier="1", mortClass="Safety",
     
     return(salaryHistory);
 }
+
+projectPension <- function(salaryHistory, tier="1", mortClass="Safety",
+                           cola=1.0185, sysName="this", sysClass="mariPol",
+                           verbose=FALSE) {
+    
+    if (verbose) {
+        cat("projectPension\n"); print((salaryHistory));
+    }
+    
+    ## Are we calculating a disability pension?
+    if (Reduce("|", unique(salaryHistory$status) %in%
+                    c("disabled","disabled/accident","disabled/ordinary"))) {
+        salaryHistory <-
+            projectDisabilityPension(salaryHistory,
+                                     tier=tier, mortClass=mortClass,
+                                     cola=cola, sysName=sysName,
+                                     sysClass=sysClass, verbose=verbose);
+    } else {
+        ## Must be a retirement pension.
+        salaryHistory <-
+            projectRetirementPension(salaryHistory,
+                                     tier=tier, mortClass=mortClass,
+                                     cola=cola, sysName=sysName,
+                                     sysClass=sysClass, verbose=verbose);
+    }
+    return(salaryHistory);
+}    
+    
 
 ## This does not appear to be usefully correct.
 projectDROP <- function(salaryHistory, retireYear, status, service, tier="1",
@@ -539,10 +689,10 @@ projectPremiums <- function(salaryHistory, adjYear=0, tier="1", mortClass="Safet
 ## in spreadsheet form from the system to select a system and generate
 ## a model for it. The system name argument is actually the system
 ## number as a zero-padded integer.
-psprsModel <- function(sysName, verbose=FALSE) {
+psprsModelT12 <- function(sysName, verbose=FALSE) {
 
     if (verbose) cat("building model:", date(), " for ", sysName, " (",
-                     assumptionKey %>% filter(sysNumCh=="022") %>%
+                     assumptionKey %>% filter(sysNumCh==!!sysName) %>%
                      select(sysName) %>% as.character(), ")",
                      "\n", sep="");
 
@@ -583,10 +733,17 @@ psprsModel <- function(sysName, verbose=FALSE) {
                          ageRange[2], "service", servRange[1], "-",
                          servRange[2], "avgPay =", avgPay, "\n");
         azModel <- genEmployees(targetCount,
-                                ageRange=ageRange, servRange=servRange,
+                                ageRange=ageRange,
+                                servRange=servRange,
                                 avgSalary=avgPay,
                                 sex=list(M=0.8, F=0.2),
-                                tier="1",
+                                tier=function(year,age,hireYear,service) {
+                                    if (hireYear <= 2010) {
+                                        return("1");
+                                    } else {
+                                        return("2");
+                                    }
+                                },                                        
                                 mortClass="Safety",
                                 currentYear=2022,
                                 sysName=sysName, sysClass=sysClass,
@@ -600,18 +757,100 @@ psprsModel <- function(sysName, verbose=FALSE) {
     return(azModel);
 }
 
-##systems <- c("022","021","029","030","007","002","003","010","012")
-## systems <- c("020","023","024","025","026","027","028","031",
-##              "032","033","034","035")
+## A tier 3 version. 
+psprsModelT3 <- function(sysName, verbose=FALSE) {
+
+    if (verbose) cat("building model:", date(), " for ", sysName, " (",
+                     assumptionKey %>% filter(sysNumCh==!!sysName) %>%
+                     select(sysName) %>% as.character(), ")",
+                     "\n", sep="");
+
+    sysRow <- popCountsT3 %>% filter(sysNumCh==!!sysName);
+    sysRowNames <- colnames(sysRow);
+    sysClass <- assumptionKey %>% filter(sysNumCh==!!sysName) %>%
+        select(sysType) %>% as.character();
+
+    azModel <- memberList();
+    
+    for (i in 4:123) {
+
+        ## > str_split("s25s30","s")
+        ## [[1]]
+        ## [1] ""   "25" "30"
+        params <- str_split(sysRowNames[i], "s")[[1]];
+        if (length(params) != 3) next;
+
+        ageLim <- as.numeric(params[2]);
+        if (ageLim == 99) {
+            ageRange <- c(65, 75);
+        } else {
+            ageRange <- c(ageLim - 5, ageLim -1);
+        }
+
+        servLim <- as.numeric(params[3]);
+        if (servLim == 50) {
+            servRange <- c(30,45);
+        } else {
+            servRange <- c(servLim - 5, servLim - 1);
+        }
+        
+        avgPay <- as.numeric(sysRow[, 3 + 10 * ceiling((i - 3)/10)]);
+        targetCount <- as.numeric(sysRow[,i]);
+
+        if (verbose) cat(">>", i, ":generating", targetCount,
+                         "employees, ages", ageRange[1], "-",
+                         ageRange[2], "service", servRange[1], "-",
+                         servRange[2], "avgPay =", avgPay, "\n");
+        azModel <- genEmployees(targetCount,
+                                ageRange=ageRange,
+                                servRange=servRange,
+                                avgSalary=avgPay,
+                                sex=list(M=0.8, F=0.2),
+                                tier="3",                                 
+                                mortClass="Safety",
+                                currentYear=2022,
+                                sysName=sysName, sysClass=sysClass,
+                                cola=1.0185,
+                                members=azModel,
+                                verbose=verbose);
+    }
+
+    if (verbose) cat("finished building model", date(), "\n");
+    
+    return(azModel);
+}
+
+## Original results produced with:
+## assumptionKey %>%
+##   left_join(popCountsT12 %>%
+##             mutate(NT12=totalcount) %>%
+##             select(sysNum,NT12), by="sysNum") %>%
+##   mutate(carT12=NA) %>%
+##   left_join(popCountsT3 %>%
+##             mutate(NT3=totalcount) %>%
+##             select(sysNum,NT3), by="sysNum") %>%
+##   mutate(carT3=NA)
+##   write.csv("results.csv",row.names=FALSE)
+
+results <- read.csv("results.csv",
+                    colClasses=c("integer",
+                                 rep("character",3),
+                                 rep("factor",3),
+                                 "integer","numeric",
+                                 "integer","numeric")) %>%
+    as_tibble()
+
+modelOutputsT12 <- list();
+modelOutputsT3 <- list();
 
 sys01 <- c("001","002","003","004","005","007","008","009","010");
 sys02 <- c("011","012","013","014","015","016","017","018","020","021");
 sys03 <- c("022","023","024","025","026","027","028","029","030","031");
 sys04 <- c("032","033","034","035","036","037","038","039","040","041");
 sys05 <- c("042","043","044","045","046","047","049","050","051","052");
-sys06 <- c("053","054","055","056","058","059","060","061","062","064");
+sys06 <- c("053","054","056","059","060","061","064");
 sys07 <- c("065","066","067","069","070","071","072","073","074","076");
-sys08 <- c("077","078","079","080","081","083","085","086","087","088");
+sys08 <- c("077","078","079","080","081","085","086","087","088");
 sys09 <- c("089","090","091","092","093","094","095","096","097","098");
 sys10 <- c("100","101","102","103","104","105","106","107","108","109");
 sys11 <- c("110","111","112","113","114","115","116","117","118","119");
@@ -629,13 +868,89 @@ sys22 <- c("236","237","238","239","241","242","243","244","245","246");
 sys23 <- c("247","248","249","250","251","252","253","254","255","256");
 sys24 <- c("257","258","259","261","262","263","264","265");
 
-systems <- c("020")
 
-for (s in c("007","008","009","010",sys02,sys03,sys04,sys05)) {
-    sysName <- assumptionKey %>% filter(sysNumCh==s) %>% select(sysName) %>% as.character();
-    sysOutput <- paste0("azModelOutput", s);
-    cat(s, "-", sysName, "\n");
-    eval(parse(text=paste0(sysOutput, "<-runModel(function(verbose) {psprsModel(\"", s, "\",verbose=verbose)}, N=50, audit=FALSE, reallyVerbose=FALSE, verbose=TRUE)"),"\n"));
-    eval(parse(text=paste0("ggsave(\"images/modelPlot",s,".png\",plot=altPlotModelOut(",sysOutput,",system=sysName),width=5,height=5)"),"\n"));
-    eval(parse(text=paste0("rm(",sysOutput,")"),"\n"));
+##for (s in c(sys09,sys10,sys11,sys12)) {
+##for (s in c("074",sys08,sys09)) {
+for (s in c(sys01,sys02,sys03)) {
+    sysName <- assumptionKey %>%
+        filter(sysNumCh==s) %>% select(sysName) %>% as.character();
+
+    ## Announce T12
+    cat(s, "-", sysName, "processing Tiers 1,2 \n");
+
+    doT12 <- TRUE;
+    if (is.na((results %>% filter(sysNumCh==s))$NT12==0)) {
+        cat("NA members\n");
+        doT12 <- FALSE;
+    }
+
+    if ((results %>% filter(sysNumCh==s))$NT12==0) {
+        cat("No members\n");
+        doT12 <- FALSE;
+    }
+
+    if (doT12) {
+        res <- try(modelOutputsT12[[s]] <-
+                       runModel(function(verbose) {
+                           psprsModelT12(s, verbose=verbose)
+                       },
+                       N=50, audit=FALSE, reallyVerbose=FALSE, verbose=TRUE));
+        if(class(res) == "try-error") {
+            cat("Error at:", s, "-", sysName, "\n");
+        } else {
+
+            ggsave(paste0("images/modelPlotT12-",s,".png"),
+                   plot=altPlotModelOut(modelOutputsT12[[s]]$output,
+                                        system=paste0(sysName, "/T1,T2")),
+                   width=5,height=5);
+    
+            results[which(results$sysNumCh==s),"carT12"] <-
+                modelOutputsT12[[s]]$output %>%
+                group_by(ryear) %>%
+                dplyr::summarize(car=mean(car)) %>%
+                filter(ryear==1000) %>%
+                select(car) %>% as.numeric();
+    
+##            write.csv(results,file="results.csv",row.names=FALSE);
+        }
+    }
+    ## Announce T3
+    cat(s, "-", sysName, "processing Tier 3 \n");
+
+    doT3 <- TRUE;
+    if (is.na((results %>% filter(sysNumCh==s))$NT3==0)) {
+        cat("NA members\n");
+        doT3 <- FALSE;
+    }
+
+    if ((results %>% filter(sysNumCh==s))$NT3==0) {
+        cat("No members\n");
+        doT3 <- FALSE;
+    }
+
+    if (doT3) {
+        res <- try(modelOutputsT3[[s]] <-
+                       runModel(function(verbose) {
+                           psprsModelT3(s, verbose=verbose)
+                       },
+                       N=50, audit=FALSE, reallyVerbose=FALSE, verbose=TRUE));
+        if(class(res) == "try-error") {
+            cat("Error at:", s, "-", sysName, "\n");
+        } else {
+
+            ggsave(paste0("images/modelPlotT3-",s,".png"),
+                   plot=altPlotModelOut(modelOutputsT3[[s]]$output,
+                                        system=paste0(sysName, "/T3")),
+                   width=5,height=5);
+    
+            results[which(results$sysNumCh==s),"carT3"] <-
+                modelOutputsT3[[s]]$output %>%
+                group_by(ryear) %>%
+                dplyr::summarize(car=mean(car)) %>%
+                filter(ryear==1000) %>%
+                select(car) %>% as.numeric();
+    
+##            write.csv(results,file="results.csv",row.names=FALSE);
+        }
+    }
 }
