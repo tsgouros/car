@@ -1209,7 +1209,10 @@ buildMasterCashFlow <- function(memberTbl, members, verbose=FALSE) {
     retireYears <- unique(memberTbl$retireYear)
     retireYears <- retireYears[order(retireYears, na.last=NA)];
 
-    if (length(retireYears) == 0) stop(" Nobody retired!\n");
+    if (length(retireYears) == 0) {
+        cat(" Nobody retired!\n");
+        return(tibble(year=c()));
+    }
 
     nYears <- endYear - startYear + 1;
 
@@ -1279,7 +1282,7 @@ runModelOnce <- function(modelConstructionFunction,
     ## Make a summary table of all the members.
     modelTbl <- makeTbl(model, sampler=sampler);
 
-    ## Build the master cash flow matrix.
+    ## Build the master cash flow matrix. 
     modelMCF <- buildMasterCashFlow(modelTbl, model, verbose=verbose);
 
     if (verbose) cat("model: Retirement classes:", dim(modelMCF)[2] - 2,
@@ -1287,36 +1290,35 @@ runModelOnce <- function(modelConstructionFunction,
                      "to", head(tail(colnames(modelMCF),2),1), "\n");
 
     ## Compute the CAR for the overall results.
-    modelCAR <- findRate(modelMCF, flowName="sum", maxIter=200,
-                         verbose=verbose);
+    if (dim(modelMCF)[2] > 0) {
+        modelCAR <- findRate(modelMCF, flowName="sum", maxIter=200,
+                             verbose=verbose);
+    } else {
+        modelCAR <- NA;
+    }
 
     if (verbose) cat("model: CAR estimate:", modelCAR, "\n");
 
     ## Record the aggregate CAR under the year 1000 because why not.
-    if (!is.na(modelCAR)) {
-        modelOut <- tibble(ryear = c(1000),
-                           car = c(modelCAR - 1.0));
-    } else {
-        ## This is a bad scene. Record everything and get out.
-        write.csv(modelTbl, file="dumpMemberTable.csv");
-        write.csv(modelMCF, file="dumpMasterCashFlow.csv");
-        stop("Something seriously wrong, check out dump files.");
-    }
+    modelOut <- tibble(ryear = c(1000), car = c(modelCAR - 1.0));
 
     ## We are also interested in calculating the CAR for each
     ## retirement class. Note that there are two extra columns in the
     ## master cash flow matrix, for the year and for the row sums.  So
     ## subtract two to get the number of retirement classes.
     minRetireYear <- min(modelTbl$retireYear, na.rm=TRUE);
-    for (i in 1:(dim(modelMCF)[2] - 2)) {
-        newYear <- minRetireYear + i - 1;
-        newRate <- findRate(modelMCF, flowName=paste0("R", newYear),
-                            maxIter=200);
+    if (dim(modelMCF)[2] > 2) {
+        for (i in 1:(dim(modelMCF)[2] - 2)) {
+            newYear <- minRetireYear + i - 1;
+            newRate <- findRate(modelMCF, flowName=paste0("R", newYear),
+                                maxIter=200);
 
-        ## If no error, record the rate for this retirement class.
-        if (!is.na(newRate)) {
-            modelOut <- rbind(modelOut,
-                              tibble(ryear=c(newYear), car=c(newRate - 1.0)));
+            ## If no error, record the rate for this retirement class.
+            if (!is.na(newRate)) {
+                modelOut <- rbind(modelOut,
+                                  tibble(ryear=c(newYear),
+                                         car=c(newRate - 1.0)));
+            }
         }
     }
 
@@ -1383,7 +1385,7 @@ plotModelOut <- function(modelOut, xlimits=c(2020,2065), ylimits=c(0,0.1)) {
     modelOutSummary <-
         modelOut %>%
         group_by(ryear) %>%
-        summarize(car=mean(car),N=n());
+        summarize(car=mean(car, na.rm=TRUE),N=n());
 
     modelOutAvg <- modelOutSummary %>%
         filter(ryear == 1000) %>% select(car) %>% as.numeric();
@@ -1405,7 +1407,7 @@ altPlotModelOut <- function(modelOut,
     modelOutSummary <-
         modelOut %>%
         group_by(ryear) %>%
-        summarize(car=mean(car),N=n());
+        summarize(car=mean(car, na.rm=TRUE),N=n());
 
     modelOutAvg <- modelOutSummary %>%
         filter(ryear == 1000) %>% select(car) %>% as.numeric();
@@ -1438,7 +1440,7 @@ plotModelOutNoLim <- function(modelOut) {
     modelOutSummary <-
         modelOut %>%
         group_by(ryear) %>%
-        summarize(car=mean(car),N=n());
+        summarize(car=mean(car, na.rm=TRUE),N=n());
 
     modelOutAvg <- modelOutSummary %>%
         filter(ryear == 1000) %>% select(car) %>% as.numeric();
