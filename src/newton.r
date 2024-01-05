@@ -63,7 +63,8 @@ findRate <- function(cashFlow, futureVal=0, flowName="flow",
         stop("There are NAs in the cash flow.\n");
     }
     if (bounds$max * bounds$min >= 0) {
-        if (verbose) cat("Need positive and negative values.\n");
+        if (verbose) cat("Need positive and negative values.",
+                         "Have min:", bounds$min, ", max:", bounds$max,".\n");
         return(NA);
     }
 
@@ -102,6 +103,7 @@ findRate <- function(cashFlow, futureVal=0, flowName="flow",
     }
 
     if (iterCount >= maxIter) {
+        if (verbose) cat("MaxIter limit hit (", maxIter, ") NA returned.\n");
         print(as.data.frame(cashFlow))
         return(NA);
     }
