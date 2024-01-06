@@ -1,11 +1,9 @@
 library(tidyverse,warn.conflicts=FALSE)
 
 ## This requires the newton.r and mortality.r functions to be loaded first.
-## To load from remote directories, do this:
+## To load from remote directories, do something like this:
 ##
-##   setwd("../../src/")
-##   source("car.r")
-##   setwd("../real/kentucky")
+## source("../../src/car.r", chdir=TRUE);
 ##
 ## We do not make this a library because many of the functions included here
 ## are meant to be overridden.
@@ -1298,7 +1296,8 @@ runModelOnce <- function(modelConstructionFunction,
     }
 
     if (verbose) cat("model: CAR estimate:", modelCAR, "\n");
-
+    if (is.na(modelCAR)) print(as.data.frame(modelMCF));
+    
     ## Record the aggregate CAR under the year 1000 because why not.
     modelOut <- tibble(ryear = c(1000), car = c(modelCAR - 1.0));
 
