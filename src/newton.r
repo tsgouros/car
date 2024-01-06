@@ -103,7 +103,7 @@ findRate <- function(cashFlow, futureVal=0, flowName="flow",
     }
 
     if (iterCount >= maxIter) {
-        if (verbose) cat("MaxIter limit hit (", maxIter, ") NA returned.\n");
+        cat("MaxIter limit hit (", maxIter, ") NA returned.\n");
         print(as.data.frame(cashFlow))
         return(NA);
     }
