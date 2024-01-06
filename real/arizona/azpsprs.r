@@ -11,12 +11,14 @@ source("../../validate/validate.r", chdir=TRUE);
 ## reports, provided in spreadsheet form by the system actuary.
 library(readxl)
 retirementRateTableFile <- "../../../arizona/data/06.30.2022_Assumptions.xlsx";
-popCountTableFile <- "../../../arizona/data/PSPRS_2022_CountSummaries.xlsx";
+#popCountTableFile <- "../../../arizona/data/PSPRS_2022_CountSummaries.xlsx";
+popCountTableFile <- "../../../arizona/data/PSPRS_2023_CountSummaries.xlsx";
 assumptionTableFile <- "../../../arizona/data/AssumpGrouping.xlsx";
 sched2019file <- "../../../arizona/data/PSPRS-ER_Exhibits-2019_TS.xlsx";
 sched2020file <- "../../../arizona/data/PSPRS-ER_Exhibits-2020_TS.xlsx";
 sched2021file <- "../../../arizona/data/PSPRS_ErExhibits&PresentationStats_2021_TS.xlsx";
 sched2022file <- "../../../arizona/data/PSPRS_ErExhibits&PresentationStats_2022_TS.xlsx";
+sched2023file <- "../../../arizona/data/PSPRS_ErExhibits&PresentationStats_2023_TS.xlsx";
 
 colHeads <- c("s05","s10","s15","s20","s25","s30","s50","count","pay","avgpay");
 popNames <- c(paste0("s20", colHeads),
@@ -166,6 +168,85 @@ contribT12.2022 <- readxl::read_excel(sched2022file,
                                                   "calcERcont",
                                                   "reqERcont")) %>%
     mutate(snum=paste0("s", sysNumCh));
+contribT12.2023 <- readxl::read_excel(sched2023file,
+                                      sheet="Tier12Contrib\ Pension",
+                                      range="A4:H231",
+                                      col_names=c("sysNum",
+                                                  "sysNumCh",
+                                                  "sysName",
+                                                  "erNCpct",
+                                                  "UALpmtPct",
+                                                  "amortPeriod",
+                                                  "calcERcont",
+                                                  "reqERcont")) %>%
+    mutate(snum=paste0("s", sysNumCh));
+
+## Now do tier 3
+contribT3.2019 <- readxl::read_excel(sched2019file,
+                                     sheet="Tier3Contrib\ Pension",
+                                     range="A4:H233",
+                                     col_names=c("sysNum",
+                                                 "sysNumCh",
+                                                 "sysName",
+                                                 "totNCpct",
+                                                 "UALpmtPct",
+                                                 "totalContPct",
+                                                 "eeNCpct",
+                                                 "erNCpct")) %>%
+    filter(!is.na(sysNumCh)) %>%
+    mutate(snum=paste0("s", sysNumCh));
+contribT3.2020 <- readxl::read_excel(sched2020file,
+                                     sheet="Tier3Contrib\ Pension",
+                                     range="A4:H233",
+                                     col_names=c("sysNum",
+                                                 "sysNumCh",
+                                                 "sysName",
+                                                 "totNCpct",
+                                                 "UALpmtPct",
+                                                 "totalContPct",
+                                                 "eeNCpct",
+                                                 "erNCpct")) %>%
+    filter(!is.na(sysNumCh)) %>%
+    mutate(snum=paste0("s", sysNumCh));
+contribT3.2021 <- readxl::read_excel(sched2021file,
+                                     sheet="Tier3Contrib\ Pension",
+                                     range="A4:H233",
+                                     col_names=c("sysNum",
+                                                 "sysNumCh",
+                                                 "sysName",
+                                                 "totNCpct",
+                                                 "UALpmtPct",
+                                                 "totalContPct",
+                                                 "eeNCpct",
+                                                 "erNCpct")) %>%
+    filter(!is.na(sysNumCh)) %>%
+    mutate(snum=paste0("s", sysNumCh));
+contribT3.2022 <- readxl::read_excel(sched2022file,
+                                     sheet="Tier3Contrib\ Pension",
+                                     range="A4:H23",
+                                     col_names=c("sysNum",
+                                                 "sysNumCh",
+                                                 "sysName",
+                                                 "totNCpct",
+                                                 "UALpmtPct",
+                                                 "totalContPct",
+                                                 "eeNCpct",
+                                                 "erNCpct")) %>%
+    mutate(snum=paste0("s", sysNumCh));
+contribT3.2023 <- readxl::read_excel(sched2023file,
+                                     sheet="Tier3Contrib\ Pension",
+                                     range="A4:H23",
+                                     col_names=c("sysNum",
+                                                 "sysNumCh",
+                                                 "sysName",
+                                                 "totNCpct",
+                                                 "UALpmtPct",
+                                                 "totalContPct",
+                                                 "eeNCpct",
+                                                 "erNCpct")) %>%
+    mutate(snum=paste0("s", sysNumCh));
+
+
 
 validateInputsAZ <- function(age=20, ageRange=c(20,120),
                            sex="M", sexRange=c("M","F"),
@@ -652,31 +733,92 @@ projectDROP <- function(salaryHistory, retireYear, status, service, tier="1",
 ## premiums paid into the system for this employee for each year.
 ## (Combined employer and employee share, do not include amortization
 ## payments.)
-projectPremiums <- function(salaryHistory, adjYear=0, tier="1", mortClass="Safety",
-                            sysName="this", sysClass="", verbose=FALSE) {
-
+projectPremiums <- function(salaryHistory, adjYear=0, tier="1",
+                            mortClass="Safety", sysName="this",
+                            sysClass="", verbose=FALSE) {
+    ## Note that the sysName we refer to is actually sysNumCh.
+    
     if (verbose) cat("projectPremiums: tier:", tier, "mortClass:", mortClass,
                      "sysName:", sysName, "sysClass:", sysClass, "\n");
 
-    ## Note the "!!" below, used because there is a "sysName" in contribT12.2019
-    ## already. The excl points sort of 'unquote' the variable reference and point
-    ## it to the environment rather than the data frame.
-    salaryHistory <- salaryHistory %>% mutate(year=year + adjYear, ncRate=0.0);
-    salaryHistory$ncRate[salaryHistory$year<=2019] <- .0765 + 
-        contribT12.2019 %>% filter(sysNumCh==!!sysName) %>% select(erNCpct) %>%
-        as.numeric();
-    salaryHistory$ncRate[salaryHistory$year==2020] <- .0765 + 
-        contribT12.2020 %>% filter(sysNumCh==!!sysName) %>% select(erNCpct) %>%
-        as.numeric();
-    salaryHistory$ncRate[salaryHistory$year==2021] <- .0765 + 
-        contribT12.2021 %>% filter(sysNumCh==!!sysName) %>% select(erNCpct) %>%
-        as.numeric();
-    salaryHistory$ncRate[salaryHistory$year>=2022] <- .0765 + 
-        contribT12.2022 %>% filter(sysNumCh==!!sysName) %>% select(erNCpct) %>%
-        as.numeric();
+    salaryHistory <- salaryHistory %>%
+        mutate(year=year + adjYear, ncRate=0.0);
+    
+    if ((tier == "1") | (tier == "2")) {
+        ## Note the "!!" below, used because there is a "sysName" in
+        ## contribT12.2019 already. The excl points sort of 'unquote' the
+        ## variable reference and point it to the environment rather than
+        ## the data frame.
+        salaryHistory$ncRate[salaryHistory$year<=2019] <- .0765 + 
+            contribT12.2019 %>% filter(sysNumCh==!!sysName) %>%
+            select(erNCpct) %>% as.numeric();
+        salaryHistory$ncRate[salaryHistory$year==2020] <- .0765 + 
+            contribT12.2020 %>% filter(sysNumCh==!!sysName) %>%
+            select(erNCpct) %>% as.numeric();
+        salaryHistory$ncRate[salaryHistory$year==2021] <- .0765 + 
+            contribT12.2021 %>% filter(sysNumCh==!!sysName) %>%
+            select(erNCpct) %>% as.numeric();
+        salaryHistory$ncRate[salaryHistory$year==2022] <- .0765 + 
+            contribT12.2022 %>% filter(sysNumCh==!!sysName) %>%
+            select(erNCpct) %>% as.numeric();
+        salaryHistory$ncRate[salaryHistory$year>=2023] <- .0765 + 
+            contribT12.2023 %>% filter(sysNumCh==!!sysName) %>%
+            select(erNCpct) %>% as.numeric();
+
+    } else if (tier == "3") {
+
+        if (sysName %in% contribT3.2019$sysNumCh) {
+            salaryHistory$ncRate[salaryHistory$year<=2019] <-
+                contribT3.2019 %>% filter(sysNumCh==!!sysName) %>%
+                select(totNCpct) %>% as.numeric();
+        } else {
+            salaryHistory$ncRate[salaryHistory$year<=2019] <-
+                contribT3.2019 %>% filter(sysName=="Risk Sharing") %>%
+                select(totNCpct) %>% as.numeric();
+        }
+        if (sysName %in% contribT3.2020$sysNumCh) {
+            salaryHistory$ncRate[salaryHistory$year==2020] <-
+                contribT3.2020 %>% filter(sysNumCh==!!sysName) %>%
+                select(totNCpct) %>% as.numeric();
+        } else {
+            salaryHistory$ncRate[salaryHistory$year==2020] <-
+                contribT3.2020 %>% filter(sysName=="Risk Sharing") %>%
+                select(totNCpct) %>% as.numeric();
+        }
+        if (sysName %in% contribT3.2021$sysNumCh) {
+            salaryHistory$ncRate[salaryHistory$year==2021] <-
+                contribT3.2021 %>% filter(sysNumCh==!!sysName) %>%
+                select(totNCpct) %>% as.numeric();
+        } else {
+            salaryHistory$ncRate[salaryHistory$year==2021] <-
+                contribT3.2021 %>% filter(sysName=="Risk Sharing") %>%
+                select(totNCpct) %>% as.numeric();
+        }
+        if (sysName %in% contribT3.2022$sysNumCh) {
+            salaryHistory$ncRate[salaryHistory$year==2022] <-
+                contribT3.2022 %>% filter(sysNumCh==!!sysName) %>%
+                select(totNCpct) %>% as.numeric();
+        } else {
+            salaryHistory$ncRate[salaryHistory$year==2022] <-
+                contribT3.2022 %>% filter(sysName=="Risk Sharing") %>%
+                select(totNCpct) %>% as.numeric();
+        }
+        if (sysName %in% contribT3.2023$sysNumCh) {
+            salaryHistory$ncRate[salaryHistory$year>=2023] <-
+                contribT3.2023 %>% filter(sysNumCh==!!sysName) %>%
+                select(totNCpct) %>% as.numeric();
+        } else {
+            salaryHistory$ncRate[salaryHistory$year>=2023] <-
+                contribT3.2023 %>% filter(sysName=="Risk Sharing") %>%
+                select(totNCpct) %>% as.numeric();
+        }
+    
+        
+    }
+    ## There might be tier 0, but they have no NC, so ncRate=0 is good.
 
     ## A rough estimate based on the system-wide rates.
-    salaryHistory$ncRate[salaryHistory$year<=2019] <-
+    salaryHistory$ncRate[salaryHistory$year<2019] <-
         .83 * salaryHistory$ncRate[salaryHistory$year==2019];
     
     return(salaryHistory %>%
@@ -829,7 +971,7 @@ psprsModelT3 <- function(sysName, verbose=FALSE) {
 ##   left_join(popCountsT3 %>%
 ##             mutate(NT3=totalcount) %>%
 ##             select(sysNum,NT3), by="sysNum") %>%
-##   mutate(carT3=NA)
+##   mutate(carT3=NA) %>%
 ##   write.csv("results.csv",row.names=FALSE)
 
 results <- read.csv("results.csv",
@@ -871,7 +1013,7 @@ sys24 <- c("257","258","259","261","262","263","264","265");
 
 ##for (s in c(sys09,sys10,sys11,sys12)) {
 ##for (s in c("074",sys08,sys09)) {
-for (s in c(sys01,sys02,sys03)) {
+for (s in c("138","139","140",sys14,sys15,sys16,sys17,sys18,sys19,sys20,sys21,sys22,sys23,sys24)) {
     sysName <- assumptionKey %>%
         filter(sysNumCh==s) %>% select(sysName) %>% as.character();
 
@@ -882,9 +1024,7 @@ for (s in c(sys01,sys02,sys03)) {
     if (is.na((results %>% filter(sysNumCh==s))$NT12==0)) {
         cat("NA members\n");
         doT12 <- FALSE;
-    }
-
-    if ((results %>% filter(sysNumCh==s))$NT12==0) {
+    } else if ((results %>% filter(sysNumCh==s))$NT12==0) {
         cat("No members\n");
         doT12 <- FALSE;
     }
@@ -911,7 +1051,7 @@ for (s in c(sys01,sys02,sys03)) {
                 filter(ryear==1000) %>%
                 select(car) %>% as.numeric();
     
-##            write.csv(results,file="results.csv",row.names=FALSE);
+            write.csv(results,file="results.csv",row.names=FALSE);
         }
     }
     ## Announce T3
@@ -921,9 +1061,7 @@ for (s in c(sys01,sys02,sys03)) {
     if (is.na((results %>% filter(sysNumCh==s))$NT3==0)) {
         cat("NA members\n");
         doT3 <- FALSE;
-    }
-
-    if ((results %>% filter(sysNumCh==s))$NT3==0) {
+    } else if ((results %>% filter(sysNumCh==s))$NT3==0) {
         cat("No members\n");
         doT3 <- FALSE;
     }
@@ -950,7 +1088,7 @@ for (s in c(sys01,sys02,sys03)) {
                 filter(ryear==1000) %>%
                 select(car) %>% as.numeric();
     
-##            write.csv(results,file="results.csv",row.names=FALSE);
+            write.csv(results,file="results.csv",row.names=FALSE);
         }
     }
 }
