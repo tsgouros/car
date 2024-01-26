@@ -144,6 +144,22 @@ contribT12.2020 <- readxl::read_excel(sched2020file,
                                                   "calcERcont",
                                                   "reqERcont")) %>%
     mutate(snum=paste0("s", sysNumCh));
+## Cheating here for a plan that joined PSPRS in 2021. Copying from ASU
+## Campus Police, which seems to be about the same size.
+contribT12.2019 <- rbind(contribT12.2019,
+                         tibble(sysNum=265,sysNumCh="265",
+                                sysName="Queen Creek Police Dept.",
+                                erNCpct=0.1476,UALpmtPct=0.3072,
+                                amortPeriod=17,calcERcont=0.4548,
+                                reqERcont=0.4548,snum="s265"));
+contribT12.2020 <- rbind(contribT12.2020,
+                         tibble(sysNum=265,sysNumCh="265",
+                                sysName="Queen Creek Police Dept.",
+                                erNCpct=0.1386,UALpmtPct=0.328,
+                                amortPeriod=16,calcERcont=0.4666,
+                                reqERcont=0.4666,snum="s265"));
+
+
 contribT12.2021 <- readxl::read_excel(sched2021file,
                                       sheet="Tier12Contrib\ Pension",
                                       range="A3:H233",
@@ -246,6 +262,28 @@ contribT3.2023 <- readxl::read_excel(sched2023file,
                                                  "erNCpct")) %>%
     mutate(snum=paste0("s", sysNumCh));
 
+
+fundingT12.2023 <- readxl::read_excel(sched2023file,
+                                         sheet="Tier12AL_AVA\ Pension",
+                                         range="A4:K231",
+                                         col_names=c("sysNum",
+                                                     "sysNumCh",
+                                                     "sysName",
+                                                     "PVB","AAL","AVA",
+                                                     "MV","UAL","UML",
+                                                     "FPA","FPM")) %>%
+    mutate(snum=paste0("s", sysNumCh));
+
+fundingT3.2023 <- readxl::read_excel(sched2023file,
+                                        sheet="Tier3AL_AVA\ Pension",
+                                        range="A4:K23",
+                                         col_names=c("sysNum",
+                                                     "sysNumCh",
+                                                     "sysName",
+                                                     "PVB","AAL","AVA",
+                                                     "MV","UAL","UML",
+                                                     "FPA","FPM")) %>%
+    mutate(snum=paste0("s", sysNumCh));
 
 
 validateInputsAZ <- function(age=20, ageRange=c(20,120),
@@ -663,7 +701,7 @@ projectPension <- function(salaryHistory, tier="1", mortClass="Safety",
                            verbose=FALSE) {
     
     if (verbose) {
-        cat("projectPension\n"); print((salaryHistory));
+        cat("projectPension\n"); print(as.data.frame(salaryHistory));
     }
     
     ## Are we calculating a disability pension?
@@ -962,7 +1000,7 @@ psprsModelT3 <- function(sysName, verbose=FALSE) {
     return(azModel);
 }
 
-## Original results produced with:
+## Original "results" table produced with:
 ## assumptionKey %>%
 ##   left_join(popCountsT12 %>%
 ##             mutate(NT12=totalcount) %>%
@@ -974,121 +1012,201 @@ psprsModelT3 <- function(sysName, verbose=FALSE) {
 ##   mutate(carT3=NA) %>%
 ##   write.csv("results.csv",row.names=FALSE)
 
-results <- read.csv("results.csv",
-                    colClasses=c("integer",
-                                 rep("character",3),
-                                 rep("factor",3),
-                                 "integer","numeric",
-                                 "integer","numeric")) %>%
-    as_tibble()
+## This next step takes a few days. Commented out now.
+#######################################################################
+## results <- read.csv("results.csv",
+##                     colClasses=c("integer",
+##                                  rep("character",3),
+##                                  rep("factor",3),
+##                                  "integer","numeric",
+##                                  "integer","numeric")) %>%
+##     as_tibble()
 
-modelOutputsT12 <- list();
-modelOutputsT3 <- list();
+## modelOutputsT12 <- list();
+## modelOutputsT3 <- list();
 
-sys01 <- c("001","002","003","004","005","007","008","009","010");
-sys02 <- c("011","012","013","014","015","016","017","018","020","021");
-sys03 <- c("022","023","024","025","026","027","028","029","030","031");
-sys04 <- c("032","033","034","035","036","037","038","039","040","041");
-sys05 <- c("042","043","044","045","046","047","049","050","051","052");
-sys06 <- c("053","054","056","059","060","061","064");
-sys07 <- c("065","066","067","069","070","071","072","073","074","076");
-sys08 <- c("077","078","079","080","081","085","086","087","088");
-sys09 <- c("089","090","091","092","093","094","095","096","097","098");
-sys10 <- c("100","101","102","103","104","105","106","107","108","109");
-sys11 <- c("110","111","112","113","114","115","116","117","118","119");
-sys12 <- c("120","121","122","123","124","125","126","127","128","129");
-sys13 <- c("130","131","132","133","134","136","137","138","139","140");
-sys14 <- c("142","143","144","145","146","147","148","149","150","151");
-sys15 <- c("153","154","155","156","157","158","160","162","163","164");
-sys16 <- c("165","166","167","168","169","170","171","172","173","174");
-sys17 <- c("176","177","178","179","180","181","182","185","187","188");
-sys18 <- c("190","192","193","194","195","196","197","198","199","200");
-sys19 <- c("201","202","203","204","206","207","208","209","210","211");
-sys20 <- c("212","213","214","215","216","217","221","222","223","224");
-sys21 <- c("225","226","227","228","229","231","232","233","234","235");
-sys22 <- c("236","237","238","239","241","242","243","244","245","246");
-sys23 <- c("247","248","249","250","251","252","253","254","255","256");
-sys24 <- c("257","258","259","261","262","263","264","265");
+## sys01 <- c("001","002","003","004","005","007","008","009","010");
+## sys02 <- c("011","012","013","014","015","016","017","018","020","021");
+## sys03 <- c("022","023","024","025","026","027","028","029","030","031");
+## sys04 <- c("032","033","034","035","036","037","038","039","040","041");
+## sys05 <- c("042","043","044","045","046","047","049","050","051","052");
+## sys06 <- c("053","054","056","059","060","061","064");
+## sys07 <- c("065","066","067","069","070","071","072","073","074","076");
+## sys08 <- c("077","078","079","080","081","085","086","087","088");
+## sys09 <- c("089","090","091","092","093","094","095","096","097","098");
+## sys10 <- c("100","101","102","103","104","105","106","107","108","109");
+## sys11 <- c("110","111","112","113","114","115","116","117","118","119");
+## sys12 <- c("120","121","122","123","124","125","126","127","128","129");
+## sys13 <- c("130","131","132","133","134","136","137","138","139","140");
+## sys14 <- c("142","143","144","145","146","147","148","149","150","151");
+## sys15 <- c("153","154","155","156","157","158","160","162","163","164");
+## sys16 <- c("165","166","167","168","169","170","171","172","173","174");
+## sys17 <- c("176","177","178","179","180","181","182","185","187","188");
+## sys18 <- c("190","192","193","194","195","196","197","198","199","200");
+## sys19 <- c("201","202","203","204","206","207","208","209","210","211");
+## sys20 <- c("212","213","214","215","216","217","221","222","223","224");
+## sys21 <- c("225","226","227","228","229","231","232","233","234","235");
+## sys22 <- c("236","237","238","239","241","242","243","244","245","246");
+## sys23 <- c("247","248","249","250","251","252","253","254","255","256");
+## sys24 <- c("257","258","259","261","262","263","264","265");
 
 
-##for (s in c(sys09,sys10,sys11,sys12)) {
-##for (s in c("074",sys08,sys09)) {
-for (s in c("138","139","140",sys14,sys15,sys16,sys17,sys18,sys19,sys20,sys21,sys22,sys23,sys24)) {
-    sysName <- assumptionKey %>%
-        filter(sysNumCh==s) %>% select(sysName) %>% as.character();
+## ##for (s in c(sys09,sys10,sys11,sys12)) {
+## ##for (s in c("074",sys08,sys09)) {
 
-    ## Announce T12
-    cat(s, "-", sysName, "processing Tiers 1,2 \n");
 
-    doT12 <- TRUE;
-    if (is.na((results %>% filter(sysNumCh==s))$NT12==0)) {
-        cat("NA members\n");
-        doT12 <- FALSE;
-    } else if ((results %>% filter(sysNumCh==s))$NT12==0) {
-        cat("No members\n");
-        doT12 <- FALSE;
-    }
+## for (s in c("265")) {
 
-    if (doT12) {
-        res <- try(modelOutputsT12[[s]] <-
-                       runModel(function(verbose) {
-                           psprsModelT12(s, verbose=verbose)
-                       },
-                       N=50, audit=FALSE, reallyVerbose=FALSE, verbose=TRUE));
-        if(class(res) == "try-error") {
-            cat("Error at:", s, "-", sysName, "\n");
-        } else {
+##     sysName <- assumptionKey %>%
+##         filter(sysNumCh==s) %>% select(sysName) %>% as.character();
 
-            ggsave(paste0("images/modelPlotT12-",s,".png"),
-                   plot=altPlotModelOut(modelOutputsT12[[s]]$output,
-                                        system=paste0(sysName, "/T1,T2")),
-                   width=5,height=5);
+##     ## Announce T12
+##     cat(s, "-", sysName, "processing Tiers 1,2 \n");
+
+##     doT12 <- TRUE;
+##     if (is.na((results %>% filter(sysNumCh==s))$NT12==0)) {
+##         cat("NA members\n");
+##         doT12 <- FALSE;
+##     } else if ((results %>% filter(sysNumCh==s))$NT12==0) {
+##         cat("No members\n");
+##         doT12 <- FALSE;
+##     } else if (!is.na((results %>% filter(sysNumCh==s))$carT12)) {
+##         cat("Already got this one!\n");
+##         doT12 <- FALSE;
+##     }
+
+##     if (doT12) {
+##         res <- try(modelOutputsT12[[s]] <-
+##                        runModel(function(verbose) {
+##                            psprsModelT12(s, verbose=verbose)
+##                        },
+##                        N=50, audit=FALSE, reallyVerbose=FALSE, verbose=TRUE));
+##         if(class(res) == "try-error") {
+##             cat("Error at:", s, "-", sysName, "\n");
+##         } else {
+
+##             ggsave(paste0("images/modelPlotT12-",s,".png"),
+##                    plot=altPlotModelOut(modelOutputsT12[[s]]$output,
+##                                         system=paste0(sysName, "/T1,T2")),
+##                    width=5,height=5);
     
-            results[which(results$sysNumCh==s),"carT12"] <-
-                modelOutputsT12[[s]]$output %>%
-                group_by(ryear) %>%
-                dplyr::summarize(car=mean(car)) %>%
-                filter(ryear==1000) %>%
-                select(car) %>% as.numeric();
+##             results[which(results$sysNumCh==s),"carT12"] <-
+##                 modelOutputsT12[[s]]$output %>%
+##                 group_by(ryear) %>%
+##                 dplyr::summarize(car=mean(car,na.rm=TRUE)) %>%
+##                 filter(ryear==1000) %>%
+##                 select(car) %>% as.numeric();
     
-            write.csv(results,file="results.csv",row.names=FALSE);
-        }
-    }
-    ## Announce T3
-    cat(s, "-", sysName, "processing Tier 3 \n");
+##             write.csv(results,file="results.csv",row.names=FALSE);
+##         }
+##     }
+##     ## Announce T3
+##     cat(s, "-", sysName, "processing Tier 3 \n");
 
-    doT3 <- TRUE;
-    if (is.na((results %>% filter(sysNumCh==s))$NT3==0)) {
-        cat("NA members\n");
-        doT3 <- FALSE;
-    } else if ((results %>% filter(sysNumCh==s))$NT3==0) {
-        cat("No members\n");
-        doT3 <- FALSE;
-    }
+##     doT3 <- TRUE;
+##     if (is.na((results %>% filter(sysNumCh==s))$NT3==0)) {
+##         cat("NA members\n");
+##         doT3 <- FALSE;
+##     } else if ((results %>% filter(sysNumCh==s))$NT3==0) {
+##         cat("No members\n");
+##         doT3 <- FALSE;
+##     } else if (!is.na((results %>% filter(sysNumCh==s))$carT3)) {
+##         cat("Already got this one!\n");
+##         doT3 <- FALSE;
+##     }
 
-    if (doT3) {
-        res <- try(modelOutputsT3[[s]] <-
-                       runModel(function(verbose) {
-                           psprsModelT3(s, verbose=verbose)
-                       },
-                       N=50, audit=FALSE, reallyVerbose=FALSE, verbose=TRUE));
-        if(class(res) == "try-error") {
-            cat("Error at:", s, "-", sysName, "\n");
-        } else {
+##     if (doT3) {
+##         res <- try(modelOutputsT3[[s]] <-
+##                        runModel(function(verbose) {
+##                            psprsModelT3(s, verbose=verbose)
+##                        },
+##                        N=50, audit=FALSE, reallyVerbose=FALSE, verbose=TRUE));
+##         if(class(res) == "try-error") {
+##             cat("Error at:", s, "-", sysName, "\n");
+##         } else {
 
-            ggsave(paste0("images/modelPlotT3-",s,".png"),
-                   plot=altPlotModelOut(modelOutputsT3[[s]]$output,
-                                        system=paste0(sysName, "/T3")),
-                   width=5,height=5);
+##             ggsave(paste0("images/modelPlotT3-",s,".png"),
+##                    plot=altPlotModelOut(modelOutputsT3[[s]]$output,
+##                                         system=paste0(sysName, "/T3")),
+##                    width=5,height=5);
     
-            results[which(results$sysNumCh==s),"carT3"] <-
-                modelOutputsT3[[s]]$output %>%
-                group_by(ryear) %>%
-                dplyr::summarize(car=mean(car)) %>%
-                filter(ryear==1000) %>%
-                select(car) %>% as.numeric();
+##             results[which(results$sysNumCh==s),"carT3"] <-
+##                 modelOutputsT3[[s]]$output %>%
+##                 group_by(ryear) %>%
+##                 dplyr::summarize(car=mean(car,na.rm=TRUE)) %>%
+##                 filter(ryear==1000) %>%
+##                 select(car) %>% as.numeric();
     
-            write.csv(results,file="results.csv",row.names=FALSE);
-        }
-    }
-}
+##             write.csv(results,file="results.csv",row.names=FALSE);
+##         }
+##     }
+## }
+#######################################################################
+
+
+avgT12 <- results %>%
+    filter(!is.na(carT12)) %>%
+    mutate(sT12=NT12*carT12) %>%
+    select(NT12,sT12) %>%
+    dplyr::summarize(NT12=sum(NT12,na.rm=TRUE),
+                     sT12=sum(sT12,na.rm=TRUE)) %>%
+    mutate(avgT12=sT12/NT12)
+
+avgT3 <- results %>%
+    filter(!is.na(carT3)) %>%
+    mutate(sT3=NT3*carT3) %>%
+    select(NT3,sT3) %>%
+    dplyr::summarize(NT3=sum(NT3,na.rm=TRUE),
+                     sT3=sum(sT3,na.rm=TRUE)) %>%
+    mutate(avgT3=sT3/NT3)
+
+
+enhancedResults <- results %>%
+    left_join(fundingT3.2023 %>%
+              select(sysNumCh,FPA),by="sysNumCh") %>%
+    mutate(RP=ifelse(is.na(FPA),1,0));
+
+carSummaryPlot <- enhancedResults %>%
+    ggplot() +
+    geom_point(aes(x=log10(NT12),y=carT12),color="red") +
+    geom_point(aes(x=log10(NT3),y=carT3,color=RP)) + 
+    geom_hline(yintercept=as.numeric(avgT12["avgT12"]), color="red") +
+    annotate("text",
+             label=sprintf("%5.1f%%", as.numeric(avgT12["avgT12"])*100),
+             x=3.4, y=as.numeric(avgT12["avgT12"]), color="red",
+             vjust=1.25,hjust=1) +
+    geom_hline(yintercept=as.numeric(avgT3["avgT3"]), color="blue") +
+    annotate("text",
+             label=sprintf("%5.1f%%", as.numeric(avgT3["avgT3"])*100),
+             x=3.4, y=as.numeric(avgT3["avgT3"]), color="blue",
+             vjust=1.25,hjust=1) +
+    theme(legend.position="NONE") +
+    ylim(c(0.035,0.095)) +
+    labs(x="Log number of members",
+         y="CAR Tier 1,2 in red, Tier 3 in blue");
+
+ggsave("images/carSummary.png", plot=carSummaryPlot,
+       width=5, height=5);
+
+
+
+carVfpaT3 <- results %>%
+    left_join(fundingT3.2023 %>%
+              select(sysNumCh,PVB,AAL,AVA,UAL,FPA),by="sysNumCh") %>%
+    ## The only FPA==NA are the members of the risk-sharing pool.
+    mutate(FPA=ifelse(is.na(FPA),1.0733616,FPA)) %>%
+    ggplot() +
+    geom_point(aes(x=carT3,y=FPA)) +
+    ylim(c(0,1.5)) + xlim(c(0.035,0.095))
+
+carVfpaT12 <- results %>%
+    left_join(fundingT12.2023 %>%
+              select(sysNumCh,PVB,AAL,AVA,UAL,FPA),by="sysNumCh") %>%
+    ggplot() +
+    geom_point(aes(x=carT12,y=FPA)) +
+    ylim(c(0,1.5))
+
+ggsave("images/carVfpaT3.png", plot=carVfpaT3,
+       width=5, height=5);
+ggsave("images/carVfpaT12.png", plot=carVfpaT12,
+       width=5, height=5);
